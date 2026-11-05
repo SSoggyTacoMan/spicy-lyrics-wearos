@@ -12,6 +12,8 @@ import com.tx24.spicyplayer.network.data.*
 import com.tx24.spicyplayer.network.data.providers.*
 import com.tx24.spicyplayer.network.data.spotify.AnonymousSpotifyCatalogSearch
 import com.tx24.spicyplayer.network.data.spotify.SharedSpotify
+import com.tx24.spicyplayer.network.data.spotify.BiniLinkIds
+import com.tx24.spicyplayer.network.data.spotify.SpicyTrackSearch
 import com.tx24.spicyplayer.network.data.spotify.SpotifyTrackResolver
 import com.tx24.spicyplayer.network.service.LyricsService
 import com.tx24.spicyplayer.platform.CoreLog
@@ -33,6 +35,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         CoreLog.sink = { level, tag, message ->
             if (level == CoreLog.Level.WARN) Log.w(tag, message) else Log.d(tag, message)
         }
+        SharedSpotify.trackSearch.apiKey = clientKey
     }
 
     private val diskCache = File(context.cacheDir, "lyrics")
@@ -313,7 +316,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
             client: OkHttpClient,
             gson: Gson,
             clientKey: String,
-            spotifyResolver: SpotifyTrackResolver = SpotifyTrackResolver(AnonymousSpotifyCatalogSearch(client, gson)),
+            spotifyResolver: SpotifyTrackResolver = SpotifyTrackResolver(AnonymousSpotifyCatalogSearch(client, gson), SpicyTrackSearch(client, gson, clientKey), BiniLinkIds(client, gson)),
             geniusPages: GeniusSongPages = GeniusSongPages(client, gson),
             lrcRedSynced: MutableMap<String, Long> = ConcurrentHashMap(),
         ): Set<RemoteLyricsProvider> {
@@ -350,7 +353,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         /** The most one request to a source may take, body included. */
         internal const val LOOKUP_CALL_TIMEOUT_S = 20L
         /** Bump when payload conversion changes, so stale conversions are refetched. */
-        private const val CACHE_VERSION = 37
+        private const val CACHE_VERSION = 38
         /** Outcomes that are no answer at all: a later lookup may get one. */
         private val UNANSWERED = setOf(
             ProviderAttemptOutcome.UNAVAILABLE,

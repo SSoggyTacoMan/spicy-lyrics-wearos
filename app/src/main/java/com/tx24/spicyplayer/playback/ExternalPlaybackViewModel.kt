@@ -1670,7 +1670,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     private fun searchedMatchInfo(request: LyricsLookupRequest, attempts: List<ProviderAttempt>): String {
         val track = LocalTrackMetadata(request.title, request.artist, request.album, request.durationSeconds * 1_000L)
         SharedSpotify.resolver.remembered(track)?.track?.candidate?.let { match ->
-            return "Spotify search: ${match.title} · ${match.artists.joinToString()} (${match.id})"
+            return "Matched on Spotify: ${match.title} · ${match.artists.joinToString()} (${match.id})"
         }
         return if (attempts.any { it.outcome == ProviderAttemptOutcome.NEEDS_MATCH }) {
             "Spotify search found no confident match"
