@@ -134,7 +134,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
     }
 
     /**
-     * The last final pick for [request]: kept [CACHE_DAYS] days,
+     * The last final pick for [request]: kept [CACHE_DAYS] days ([LONG_CACHE_DAYS] for lyrics found, with [keepLyricsLonger]),
      * "no lyrics" included, errors never. Only reused while the sources, their order, switches and
      * sync types are the ones it was picked under, since others could pick differently.
      * [manualSpotifyId], a Spotify ID the user set for the song, has picks of its own.
@@ -161,7 +161,7 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         if (found == null && resolution !is RemoteLyricsResolution.NotFound) return
         val stored = StoredPick(
             version = CACHE_VERSION,
-            expiresAt = System.currentTimeMillis() + CACHE_DAYS * 86_400_000L,
+            expiresAt = System.currentTimeMillis() + (if (found != null && keepLyricsLonger) LONG_CACHE_DAYS else CACHE_DAYS) * 86_400_000L,
             order = enabledOrder(),
             sourceId = found?.selection?.source?.id,
             payload = found?.selection?.payload,
@@ -370,6 +370,8 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         private const val NETEASE_ID = "netease"
         private val APP_USER_AGENT = "Spicy Lyrics Mobile ${BuildConfig.VERSION_NAME} (${BuildConfig.APPLICATION_ID})"
         private const val CACHE_DAYS = 3
+        /** What a found pick is kept for with [keepLyricsLonger]; "no lyrics" stays at [CACHE_DAYS], so a new upload shows up soon. */
+        private const val LONG_CACHE_DAYS = 30
         /** Custom sources start after every built-in one. */
         private const val CUSTOM_PRIORITY = 1_000
         internal const val SWITCHED_OFF = "switchedOff"
@@ -466,6 +468,11 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
     var splitBackgroundVocals: Boolean
         get() = preferences.getBoolean("splitBackgroundVocals", true)
         set(value) = preferences.edit().putBoolean("splitBackgroundVocals", value).apply()
+
+    /** Found lyrics are kept 30 days instead of 3: fewer lookups, and they still show offline. Off, a new TTML arrives sooner. */
+    var keepLyricsLonger: Boolean
+        get() = preferences.getBoolean("keepLyricsLonger", false)
+        set(value) = preferences.edit().putBoolean("keepLyricsLonger", value).apply()
 
     /** On-device Japanese romaji spelled as lyric pages write it (kyou); off, as said with macrons (kyō). */
     var writtenRomaji: Boolean

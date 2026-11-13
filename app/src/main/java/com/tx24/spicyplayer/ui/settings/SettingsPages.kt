@@ -115,6 +115,7 @@ import com.tx24.spicyplayer.lyrics.spicy.canvas.PinnedFooterMode
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Flare
 import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.VideoLibrary
@@ -1341,7 +1342,7 @@ internal fun SourcesContent(state: PlayerUiState, viewModel: ExternalPlaybackVie
         )
     }
     SourceList(ranking, names, viewModel)
-    MoreOptions("Custom sources, background vocals in brackets, your own Spicy Lyrics key") {
+    MoreOptions("Custom sources, background vocals in brackets, keeping lyrics longer, your own Spicy Lyrics key") {
         CustomSourcesSection(state, viewModel)
         SettingsSection("Reading lyrics") {
             ToggleRow(
@@ -1350,6 +1351,13 @@ internal fun SourcesContent(state: PlayerUiState, viewModel: ExternalPlaybackVie
                 checked = state.splitBackgroundVocals,
                 onCheckedChange = viewModel::setSplitBackgroundVocals,
                 icon = Icons.Rounded.RecordVoiceOver,
+            )
+            ToggleRow(
+                label = "Keep lyrics longer",
+                description = "Found lyrics are kept for 30 days instead of 3, so they still show offline. Off, a newly uploaded TTML arrives sooner.",
+                checked = state.keepLyricsLonger,
+                onCheckedChange = viewModel::setKeepLyricsLonger,
+                icon = Icons.Rounded.Storage,
             )
         }
         SettingsSection("Spicy Lyrics key") {

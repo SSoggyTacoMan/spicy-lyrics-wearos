@@ -233,6 +233,7 @@ data class PlayerUiState(
     val modelSyncing: Boolean = false,
     /** Brackets at a synced line's ends shown as background vocals. */
     val splitBackgroundVocals: Boolean = true,
+    val keepLyricsLonger: Boolean = false,
     val writtenRomaji: Boolean = true,
     /** The user's own sources, in the order they were added; their place in the lookup is in [sourcePolicy]. */
     val customSources: List<CustomLyricsSource> = emptyList(),
@@ -333,6 +334,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         sourcePolicy = lyricsBackend.policy(),
         humanRomanizations = lyricsBackend.humanRomanizations,
         splitBackgroundVocals = lyricsBackend.splitBackgroundVocals,
+        keepLyricsLonger = lyricsBackend.keepLyricsLonger,
         writtenRomaji = lyricsBackend.writtenRomaji,
         switchedOffSources = lyricsBackend.switchedOffSources,
         ownKeyHint = runtimeApiKey.takeIf { it.isNotBlank() }?.let(SpicyLyricsKey::hint),
@@ -1363,6 +1365,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             songDelayMs = songDelays.delayMs(mutableState.value.localLyricsKey),
             humanRomanizations = lyricsBackend.humanRomanizations,
             splitBackgroundVocals = lyricsBackend.splitBackgroundVocals,
+            keepLyricsLonger = lyricsBackend.keepLyricsLonger,
             writtenRomaji = lyricsBackend.writtenRomaji,
             switchedOffSources = lyricsBackend.switchedOffSources,
         )
@@ -1845,6 +1848,11 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         if (lyricsBackend.humanRomanizations) humanize(selection, lyrics, currentLyricsKey, request)
     }
 
+    fun setKeepLyricsLonger(enabled: Boolean) {
+        lyricsBackend.keepLyricsLonger = enabled
+        mutableState.value = mutableState.value.copy(keepLyricsLonger = enabled)
+    }
+
     fun setHumanRomanizations(enabled: Boolean) {
         if (enabled && askFirst(SourceDisclosures.forId(SourceDisclosures.GENIUS_ROMANIZATION_ID))) return
         lyricsBackend.humanRomanizations = enabled
@@ -1950,6 +1958,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
                 onDeviceDownloadedBytes = kept.onDeviceDownloadedBytes,
                 humanRomanizations = kept.humanRomanizations,
                 splitBackgroundVocals = kept.splitBackgroundVocals,
+                keepLyricsLonger = kept.keepLyricsLonger,
                 writtenRomaji = kept.writtenRomaji,
                 sourceDisclosure = kept.sourceDisclosure,
                 switchedOffSources = kept.switchedOffSources,
