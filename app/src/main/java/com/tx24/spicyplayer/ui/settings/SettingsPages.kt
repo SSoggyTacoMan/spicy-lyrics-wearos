@@ -603,13 +603,19 @@ internal fun ScrollSyncContent(state: PlayerUiState, viewModel: ExternalPlayback
             description = "Show an arrow when the active lyric is outside the viewport.",
             icon = Icons.Rounded.VerticalAlignCenter,
         )
-        ToggleRow(
+        SettingRow(
             label = "Auto-scroll Unsynced Lyrics",
-            checked = settings.staticAutoScroll,
-            onCheckedChange = { settings.staticAutoScroll = it },
-            description = "Lyrics without timing scroll through at the song's pace, from top to bottom.",
+            description = "Lyrics without timing scroll through with the song. Basic holds through quiet intros, outros and breaks, using Spotify's analysis of the song.",
+            searchDescription = "Lyrics without timing scroll through at the song's pace, from top to bottom.",
             icon = Icons.Rounded.SwapVert,
-        )
+        ) {
+            SpicySelect(
+                value = settings.staticAutoScroll.name,
+                options = StaticAutoScroll.entries.map { it.name },
+                labels = StaticAutoScroll.entries.map { it.label },
+                onChange = { settings.staticAutoScroll = StaticAutoScroll.valueOf(it) },
+            )
+        }
     }
 }
 

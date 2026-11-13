@@ -572,7 +572,9 @@ fun LyricsView(
                             targetY = null
                             val songMs = scrollConfigUpdated.staticSongMs
                             if (songMs > 0L && currentLayouts.isNotEmpty()) {
-                                val reached = (currentTime.toFloat() / songMs).coerceIn(0f, 1f) * (totalContentHeight - footerHeightUpdated)
+                                val through = scrollConfigUpdated.staticPace()?.progress(currentTime)
+                                    ?: (currentTime.toFloat() / songMs).coerceIn(0f, 1f)
+                                val reached = through * (totalContentHeight - footerHeightUpdated)
                                 targetY = -reached
                                 scrollIndex = currentLayouts.indices.lastOrNull { settledYScratch[it] <= reached } ?: 0
                                 scrollVisiblePx = Float.POSITIVE_INFINITY

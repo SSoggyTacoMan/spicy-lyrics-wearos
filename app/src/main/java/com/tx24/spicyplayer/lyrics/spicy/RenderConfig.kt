@@ -33,6 +33,11 @@ data class ScrollConfig(
      * their scrolling to the user.
      */
     val staticSongMs: Long = 0L,
+    /**
+     * The song's pace for static lyrics, once known: the lyrics hold through quiet intros, outros
+     * and breaks. Null (or until it arrives) they move evenly over [staticSongMs].
+     */
+    val staticPace: () -> com.tx24.spicyplayer.network.data.spotify.StaticPace? = { null },
 ) {
     companion object {
         /** Players fade audio in for about this long after a seek, swallowing a line's first syllable. */

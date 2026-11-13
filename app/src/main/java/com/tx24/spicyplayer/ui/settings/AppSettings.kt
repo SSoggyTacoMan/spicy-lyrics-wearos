@@ -33,7 +33,9 @@ class AppSettings(private val prefs: SharedPreferences) {
     private val all = mutableListOf<Setting<*>>()
     // `coverStage` and `bigCoverCanvas` are only read now, by [stageArt] and [bigCoverArt], but an
     // older backup still restores them.
-    private val types = mutableMapOf<String, KClass<*>>("coverStage" to Boolean::class, "bigCoverCanvas" to Boolean::class)
+    private val types = mutableMapOf<String, KClass<*>>(
+        "coverStage" to Boolean::class, "bigCoverCanvas" to Boolean::class, "staticAutoScroll" to Boolean::class,
+    )
 
     /** The type each setting is stored as, by key, so a restore can turn away the wrong one. */
     val storedTypes: Map<String, KClass<*>> get() = types
@@ -92,8 +94,17 @@ class AppSettings(private val prefs: SharedPreferences) {
     var scrollLeadEnabled by boolean("scrollLeadEnabled", false)
     var scrollLeadMs by int("scrollLeadMs", 250, 0..800)
     var smoothScrolling by boolean("smoothScrolling", false)
-    /** Unsynced lyrics scroll through at the song's pace, top to bottom over its length. */
-    var staticAutoScroll by boolean("staticAutoScroll", true)
+    /**
+     * Unsynced lyrics scroll through with the song, top to bottom. It was an on/off switch
+     * (`staticAutoScroll`): until the choice is saved, on reads as [StaticAutoScroll.Basic].
+     */
+    var staticAutoScroll by setting(
+        "staticAutoScrollMode", String::class,
+        {
+            runCatching { enumValueOf<StaticAutoScroll>(prefs.getString("staticAutoScrollMode", null)!!) }.getOrNull()
+                ?: if (read { prefs.getBoolean("staticAutoScroll", true) } == false) StaticAutoScroll.Off else StaticAutoScroll.Basic
+        },
+    ) { prefs.edit().putString("staticAutoScrollMode", it.name).apply() }
     var seekFadeCompensation by boolean("seekFadeCompensation", true)
 
     var distanceBlur by boolean("distanceBlur", true)
@@ -362,6 +373,13 @@ const val MAX_BACKGROUND_BLUR = 67
 const val DEFAULT_DYNAMIC_BLUR = 60
 
 /** How long the controls stay after the last touch before they fade. */
+/** How lyrics without timing follow the song: not at all, or paced by when the song is quiet. */
+enum class StaticAutoScroll(val label: String) {
+    Off("Off"),
+    /** Holds through quiet intros, outros and breaks of a few seconds; evenly over the song when there's no analysis. */
+    Basic("Basic"),
+}
+
 /** The floating window's shapes, as width:height; [Custom] takes `AppSettings.pipCustomRatio`. */
 enum class PipShape(val label: String, val width: Int, val height: Int) {
     Wide("Wide (16:9)", 16, 9),

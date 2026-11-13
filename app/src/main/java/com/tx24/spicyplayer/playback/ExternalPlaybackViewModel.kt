@@ -69,6 +69,7 @@ import com.tx24.spicyplayer.network.data.spotify.AudioAnalysis
 import com.tx24.spicyplayer.network.data.spotify.LocalTrackMetadata
 import com.tx24.spicyplayer.network.data.spotify.SharedSpotify
 import com.tx24.spicyplayer.network.data.spotify.SpotifyTrackCandidate
+import com.tx24.spicyplayer.network.data.spotify.StaticPace
 import com.tx24.spicyplayer.lyrics.spicy.canvas.kawarp.BackgroundSpeed
 import com.tx24.spicyplayer.ui.nowplaying.SessionCustomAction
 import com.tx24.spicyplayer.ui.nowplaying.TrackDirection
@@ -287,6 +288,8 @@ data class TrackExtrasWanted(
     val releaseYear: Boolean = false,
     val artistHeader: Boolean = false,
     val beats: Boolean = false,
+    /** The song's loudness, for the scroll of lyrics without timing. */
+    val staticPace: Boolean = false,
 )
 
 class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(application) {
@@ -731,6 +734,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     private var canvasTrackId: String? = null
     /** The playing song's audio analysis, for the beat-reactive background. */
     @Volatile private var audioAnalysis: AudioAnalysis? = null
+    private var staticPace: Pair<AudioAnalysis, StaticPace?>? = null
     /** The last music haptics built: from which analysis, in which style. */
     @Volatile private var musicHaptics: Triple<AudioAnalysis, MusicHapticsStyle, List<MusicHaptic>>? = null
 
@@ -2173,7 +2177,8 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         val wanted = screenExtrasWanted.let { if (mutableState.value.calibratingDelay) it.copy(beats = true) else it }
         val added = (wanted.releaseYear && !extrasWanted.releaseYear) ||
             (wanted.artistHeader && !extrasWanted.artistHeader) ||
-            (wanted.beats && !extrasWanted.beats)
+            (wanted.beats && !extrasWanted.beats) ||
+            (wanted.staticPace && !extrasWanted.staticPace)
         extrasWanted = wanted
         if (added) loadExtras()
     }
@@ -2202,6 +2207,13 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     fun backgroundSpeed(): Float? {
         val analysis = audioAnalysis ?: return null
         return BackgroundSpeed.at(currentPositionMs() / 1000f, analysis)
+    }
+
+    /** The playing song's pace for lyrics without timing, or null while there's no analysis for it. */
+    fun staticPace(): StaticPace? {
+        val analysis = audioAnalysis ?: return null
+        staticPace?.takeIf { it.first === analysis }?.let { return it.second }
+        return StaticPace.of(analysis).also { staticPace = analysis to it }
     }
 
     /** The vibrations that go with the song in [style], or null when there is no analysis for it. */
@@ -2288,7 +2300,8 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             artistHeaderPending = wanted.artistHeader && request != null,
         )
         val needYear = wanted.releaseYear && sessionYear == null
-        if (request == null || !(needYear || wanted.artistHeader || wanted.beats)) return
+        val needAnalysis = wanted.beats || wanted.staticPace
+        if (request == null || !(needYear || wanted.artistHeader || needAnalysis)) return
         // Skipping through songs, only the one that stays is looked up.
         val skipping = SystemClock.elapsedRealtime() - lastTrackChangeAt < TRACK_SETTLE_MS
         extrasJob = viewModelScope.launch {
@@ -2296,7 +2309,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             val track = LocalTrackMetadata(request.title, request.artist, request.album, request.durationSeconds * 1_000L)
             val trackIds = withContext(Dispatchers.IO) { spotifyExtras.trackIds(track, request.spotifyTrackId) }
             val trackId = trackIds.firstOrNull()
-            if (wanted.beats && trackId != null) launch {
+            if (needAnalysis && trackId != null) launch {
                 audioAnalysis = withContext(Dispatchers.IO) { spotifyExtras.audioAnalysis(trackId) }
             }
             if (wanted.artistHeader) launch {

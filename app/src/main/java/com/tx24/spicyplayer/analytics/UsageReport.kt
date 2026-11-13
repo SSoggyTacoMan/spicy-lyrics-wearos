@@ -3,6 +3,7 @@ package com.tx24.spicyplayer.analytics
 import com.tx24.spicyplayer.ui.nowplaying.LoopKind
 import com.tx24.spicyplayer.ui.nowplaying.StageArt
 import com.tx24.spicyplayer.ui.settings.AppSettings
+import com.tx24.spicyplayer.ui.settings.StaticAutoScroll
 
 /** How often the settings snapshot and the usage counts go out. */
 const val DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000L
@@ -91,7 +92,8 @@ fun configSnapshot(settings: AppSettings): Map<String, Any> = with(settings) {
         "scroll_lead_ms" to scrollLeadMs,
         "seek_fade_compensation" to seekFadeCompensation,
         "smooth_scrolling" to smoothScrolling,
-        "static_auto_scroll" to staticAutoScroll,
+        "static_auto_scroll" to (staticAutoScroll != StaticAutoScroll.Off),
+        "static_auto_scroll_mode" to staticAutoScroll.name,
         "distance_blur" to distanceBlur,
         "glow" to glow,
         "low_performance" to lowPerformance,

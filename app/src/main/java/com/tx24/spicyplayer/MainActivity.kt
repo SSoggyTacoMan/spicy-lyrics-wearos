@@ -6,6 +6,7 @@ import android.content.pm.ActivityInfo
 import com.tx24.spicyplayer.ui.settings.LocalAppIcon
 import com.tx24.spicyplayer.ui.settings.AppIcon
 import com.tx24.spicyplayer.ui.settings.SettingsPage
+import com.tx24.spicyplayer.ui.settings.StaticAutoScroll
 import com.tx24.spicyplayer.ui.components.LocalPopupPalette
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -789,7 +790,8 @@ private fun LyricsApp(
             leadMs = if (settings.scrollLeadEnabled) settings.scrollLeadMs.coerceAtLeast(0).toLong() else 0L,
             smooth = settings.smoothScrolling,
             seekFadeCompensation = settings.seekFadeCompensation,
-            staticSongMs = if (settings.staticAutoScroll) state.durationMs else 0L,
+            staticSongMs = if (settings.staticAutoScroll != StaticAutoScroll.Off) state.durationMs else 0L,
+            staticPace = viewModel::staticPace,
         ),
     )
     var showSettings by remember { mutableStateOf(false) }
@@ -947,6 +949,8 @@ private fun LyricsApp(
         releaseYear = settings.releaseYearPosition != ReleaseYearPosition.Off,
         artistHeader = backgroundType.usesArtistHeader,
         beats = beatReactive || musicHapticsOn,
+        staticPace = settings.staticAutoScroll == StaticAutoScroll.Basic &&
+            (state.lyrics as? LyricsState.Ready)?.lyricsType == LyricsType.Static,
     )
     LaunchedEffect(extrasWanted) { viewModel.setTrackExtrasWanted(extrasWanted) }
     // Vibrates with the beats while the song plays and the app is in front with the screen on.
