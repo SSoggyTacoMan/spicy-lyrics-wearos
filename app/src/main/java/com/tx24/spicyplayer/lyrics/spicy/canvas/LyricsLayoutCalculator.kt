@@ -33,6 +33,8 @@ import com.tx24.spicyplayer.translation.presentationSupplements
 import com.tx24.spicyplayer.translation.romanizationNote
 import com.tx24.spicyplayer.translation.RomanizationNote
 import com.tx24.spicyplayer.lyrics.spicy.romanization.RomanizationMode
+import com.tx24.spicyplayer.lyrics.spicy.RenderConfig
+import com.tx24.spicyplayer.lyrics.spicy.parser.LetterSynthesizer
 
 internal object LyricsLayoutCalculator {
     fun calculatePresentationLayouts(
@@ -50,6 +52,8 @@ internal object LyricsLayoutCalculator {
         backgroundScale: Float,
         romanizationMode: RomanizationMode = RomanizationMode.Replace,
         refreshedSimple: Boolean = false,
+        /** Set when the rows under a line are animated: the render config their words' letters are split by. */
+        animatedRows: RenderConfig? = null,
     ): List<LineLayout> {
         val base = calculateLineLayouts(originals, canvasWidth, textMeasurer, density, lyricsType, fontSizeScale,
             romanize && romanizationMode == RomanizationMode.Replace, simpleMode, wideDuet, backgroundScale, refreshedSimple)
@@ -96,7 +100,7 @@ internal object LyricsLayoutCalculator {
                     val rows = supplements.mapIndexed { row, measured ->
                         y += em * if (row == 0) LINE_TO_NOTE_GAP else NOTE_GAP
                         SupplementLayout(measured, Offset(if (layout.isRightAligned) layout.totalWidth - measured.size.width else 0f, y),
-                            words = if (row == 0 && romanization != null) calculateRomanizationWords(romanization, measured, textMeasurer) else emptyList(),
+                            words = if (row == 0 && romanization != null) calculateRomanizationWords(romanization, measured, textMeasurer, animatedRows) else emptyList(),
                             isRtl = RtlDetector.isRtl(measured.layoutInput.text.text))
                             .also { y += measured.size.height }
                     }
@@ -118,14 +122,43 @@ internal object LyricsLayoutCalculator {
      * and the static note never reflows when its line becomes active.
      */
     private fun calculateRomanizationWords(note: RomanizationNote, measured: androidx.compose.ui.text.TextLayoutResult,
-        textMeasurer: TextMeasurer): List<WordLayout> = buildList {
-        for (piece in note.pieces) {
+        textMeasurer: TextMeasurer, animatedRows: RenderConfig? = null): List<WordLayout> = buildList {
+        note.pieces.forEachIndexed { pieceIndex, piece ->
+            // A syllable grows from the side it's joined on, as the line's own do, so a word never
+            // opens up at its seams: the first from its right edge, the last from its left.
+            fun joined(a: com.tx24.spicyplayer.translation.RomanizationPiece?, b: com.tx24.spicyplayer.translation.RomanizationPiece?) =
+                a != null && b != null && a.text.isNotEmpty() && b.text.isNotEmpty() && b.textOffset == a.textOffset + a.text.length
+            val gluedBefore = joined(note.pieces.getOrNull(pieceIndex - 1), piece)
+            val gluedAfter = joined(piece, note.pieces.getOrNull(pieceIndex + 1))
+            val anchor = when {
+                gluedAfter && !gluedBefore -> 1f
+                gluedBefore && !gluedAfter -> 0f
+                else -> 0.5f
+            }
             val fragments = mutableListOf<WordLayout>()
             var wordWidth = 0f
+            // Animated, a held word's note is cut into letters, which rise one after another
+            // like the word's own.
+            val letters = animatedRows?.let { LetterSynthesizer.rowWord(piece.word, piece.text, it) }
+                ?.let { it.isLetterGroup && it.letters.size == piece.text.length } == true
             for (row in 0 until measured.lineCount) {
                 val start = maxOf(piece.textOffset, measured.getLineStart(row))
                 val end = minOf(piece.textOffset + piece.text.length, measured.getLineEnd(row, visibleEnd = true))
                 if (start >= end) continue
+                if (letters) {
+                    for (offset in start until end) {
+                        val result = textMeasurer.measure(note.text.substring(offset, offset + 1), measured.layoutInput.style.copy(
+                            textAlign = TextAlign.Left, shadow = Shadow.None,
+                            letterSpacing = (System.identityHashCode(piece.word) % 1000 * 0.0000001f + offset * 0.000000001f).sp,
+                        ), softWrap = false)
+                        fragments += WordLayout(piece.word, result,
+                            Offset(measured.getBoundingBox(offset).left, measured.getLineBaseline(row) - result.firstBaseline),
+                            sourceWordIndex = piece.sourceWordIndex, charIndex = offset - piece.textOffset,
+                            startXOffset = wordWidth, charCount = piece.text.length)
+                        wordWidth += result.size.width
+                    }
+                    continue
+                }
                 val text = note.text.substring(start, end)
                 val result = textMeasurer.measure(text, measured.layoutInput.style.copy(
                     textAlign = TextAlign.Left, shadow = Shadow.None,
@@ -141,7 +174,7 @@ internal object LyricsLayoutCalculator {
             }
             val rtl = RtlDetector.isRtl(piece.text)
             fragments.forEach { fragment ->
-                add(fragment.copy(fullWordWidth = wordWidth,
+                add(fragment.copy(fullWordWidth = wordWidth, anchor = anchor,
                     startXOffset = if (rtl) wordWidth - fragment.startXOffset - fragment.textLayoutResult.size.width else fragment.startXOffset))
             }
         }
@@ -150,10 +183,10 @@ internal object LyricsLayoutCalculator {
     internal const val ACTIVE_LINE_SCALE = 1.05f
 
     // Gaps around a line's notes (romanization, translation), in lyric font sizes.
-    private const val LINE_TO_NOTE_GAP = 0.22f
+    private const val LINE_TO_NOTE_GAP = 0.06f
     private const val NOTE_GAP = 0.06f
     private const val NOTES_TO_NEXT_GAP = 0.18f
-    private const val NOTES_TO_BACKGROUND_GAP = 0.4f
+    private const val NOTES_TO_BACKGROUND_GAP = 0f
 
     private val bundledFontFamily = FontFamily(
         Font(R.font.lyrics_regular, FontWeight.Normal),

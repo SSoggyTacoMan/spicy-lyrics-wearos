@@ -12,6 +12,14 @@ enum class SyllableMerge(val label: String) {
 }
 
 /** How the lyrics follow the song and answer a tap. None of it changes how lines are measured. */
+/** How a romanization row timed by syllable lights up under its line. */
+enum class RomanizationHighlight(val label: String) {
+    /** Each syllable fills from its start to its end as it's sung. */
+    Sweep("Sweep"),
+    /** Each syllable brightens whole while it's sung. */
+    Word("Word by word"),
+}
+
 data class ScrollConfig(
     /** Early Scroll: the view picks its line as if the song were this far ahead. 0 is off. */
     val leadMs: Long = 0L,
@@ -84,6 +92,12 @@ data class RenderConfig(
     val backgroundPop: Boolean = false,
     /** Keep Overlapping Lines (Minimal): a line sung while one above it is still active stays on screen, dimmed. */
     val keepOverlappingLines: Boolean = true,
+    val romanizationHighlight: RomanizationHighlight = RomanizationHighlight.Sweep,
+    /**
+     * The rows under a line move like the lyrics: a romanization row timed by syllable rises,
+     * swells and glows with the words above it, and a translation row sweeps with the line.
+     */
+    val animatedUnderRows: Boolean = false,
     val scroll: ScrollConfig = ScrollConfig(),
 ) {
     val isRefreshedSimple: Boolean get() = refreshedSimple && simpleLyricsMode && !appleMusic

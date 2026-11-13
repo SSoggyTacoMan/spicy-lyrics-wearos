@@ -55,6 +55,16 @@ data class LineAnimState(
     val lit: Float = 0f,
     /** Interlude dots: the whole group's breathing, about its middle, on top of [scale]. */
     val groupScale: Float = 1f,
+    /**
+     * Animated rows: the under-line romanization's words animated as words of their own, by
+     * word of the line. Empty when the row isn't animated.
+     */
+    val rowWordStates: List<WordAnimState> = emptyList(),
+    /**
+     * Word-by-word romanization highlight: per word of the line a pair, how lit it is (0 dim,
+     * 1 sung, 2 being sung) and its glow. Empty when the row doesn't use it.
+     */
+    val rowHighlight: List<Float> = emptyList(),
 )
 
 /**

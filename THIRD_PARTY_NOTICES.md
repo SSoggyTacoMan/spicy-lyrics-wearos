@@ -12,7 +12,7 @@ Spicy Lyrics Mobile is licensed under the [GNU Affero General Public License, ve
 | [@kawarp/core](https://github.com/better-lyrics/kawarp) 1.2.2, Copyright (c) 2026 Better Lyrics | The animated background | MIT |
 | [cubic-spline](https://github.com/morganherlocker/cubic-spline), Copyright (c) 2014 Morgan Herlocker | Spline interpolation for word animation | MIT |
 | [spr](https://github.com/Fraktality/spr), Copyright (c) 2023 Fractality | Spring simulation | MIT |
-| [pinyin](https://github.com/hotoo/pinyin) 4.0.0, Copyright (c) 闲耘 | Chinese romanization and its character dictionary (`app/src/main/resources/romanization/pinyin.txt`) | MIT |
+| [pinyin](https://github.com/hotoo/pinyin) 4.0.0, Copyright (c) 闲耘 | Chinese romanization, its character dictionary (`core/src/main/resources/romanization/pinyin.txt`) and its word dictionary (`core/src/main/resources/romanization/pinyin-phrases.txt`) | MIT |
 | [kuroshiro](https://github.com/hexenq/kuroshiro) 1.2.0, Copyright (c) 2015-2021 Hexen Qi | Japanese romanization rules and Hepburn table | MIT |
 | [aromanize-js](https://github.com/fujaru/aromanize-js), Copyright (c) 2017 Fajar Chandra | Korean romanization rules | MIT |
 | Lyrica's lrcmux adapter | The LRCMux lyrics source | MIT |

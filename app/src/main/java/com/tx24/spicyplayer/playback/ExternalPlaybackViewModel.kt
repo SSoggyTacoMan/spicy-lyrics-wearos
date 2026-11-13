@@ -233,6 +233,7 @@ data class PlayerUiState(
     val modelSyncing: Boolean = false,
     /** Brackets at a synced line's ends shown as background vocals. */
     val splitBackgroundVocals: Boolean = true,
+    val writtenRomaji: Boolean = true,
     /** The user's own sources, in the order they were added; their place in the lookup is in [sourcePolicy]. */
     val customSources: List<CustomLyricsSource> = emptyList(),
     /** The player's queue, when it shares one; empty otherwise. */
@@ -332,6 +333,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         sourcePolicy = lyricsBackend.policy(),
         humanRomanizations = lyricsBackend.humanRomanizations,
         splitBackgroundVocals = lyricsBackend.splitBackgroundVocals,
+        writtenRomaji = lyricsBackend.writtenRomaji,
         switchedOffSources = lyricsBackend.switchedOffSources,
         ownKeyHint = runtimeApiKey.takeIf { it.isNotBlank() }?.let(SpicyLyricsKey::hint),
     ))
@@ -1361,6 +1363,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             songDelayMs = songDelays.delayMs(mutableState.value.localLyricsKey),
             humanRomanizations = lyricsBackend.humanRomanizations,
             splitBackgroundVocals = lyricsBackend.splitBackgroundVocals,
+            writtenRomaji = lyricsBackend.writtenRomaji,
             switchedOffSources = lyricsBackend.switchedOffSources,
         )
         // The playing song's Spotify link may have come or gone: look it up again if so.
@@ -1785,7 +1788,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
         synchronized(renderedCache) { renderedCache[selection] }
             ?.takeIf { !usesDuration || it.durationMs == durationMs }
             ?.let { return it.lyrics }
-        val lyrics = RemoteLyricsAdapter.render(selection, durationMs, lyricsBackend.splitBackgroundVocals)
+        val lyrics = RemoteLyricsAdapter.render(selection, durationMs, lyricsBackend.splitBackgroundVocals, writtenJapanese = lyricsBackend.writtenRomaji)
         synchronized(renderedCache) { renderedCache[selection] = RenderedLyrics(durationMs, lyrics) }
         return lyrics
     }
@@ -1814,6 +1817,19 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
             Log.d("LyricsProviders", "Human romanization laid over $laid lines")
             mutableState.value = mutableState.value.copy(lyrics = human, humanRomanizedLines = laid)
         }
+    }
+
+    fun setWrittenRomaji(enabled: Boolean) {
+        lyricsBackend.writtenRomaji = enabled
+        mutableState.value = mutableState.value.copy(writtenRomaji = enabled)
+        // Every rendered copy was spelled the other way.
+        synchronized(renderedCache) { renderedCache.clear() }
+        synchronized(humanCache) { humanCache.clear() }
+        val selection = shownSelection ?: return
+        val request = shownRequest ?: return
+        val lyrics = runCatching { rendered(selection, request.durationSeconds * 1_000L) }.getOrNull() ?: return
+        mutableState.value = mutableState.value.copy(lyrics = lyrics)
+        if (lyricsBackend.humanRomanizations) humanize(selection, lyrics, currentLyricsKey, request)
     }
 
     fun setSplitBackgroundVocals(enabled: Boolean) {
@@ -1934,6 +1950,7 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
                 onDeviceDownloadedBytes = kept.onDeviceDownloadedBytes,
                 humanRomanizations = kept.humanRomanizations,
                 splitBackgroundVocals = kept.splitBackgroundVocals,
+                writtenRomaji = kept.writtenRomaji,
                 sourceDisclosure = kept.sourceDisclosure,
                 switchedOffSources = kept.switchedOffSources,
                 ownKeyHint = kept.ownKeyHint,

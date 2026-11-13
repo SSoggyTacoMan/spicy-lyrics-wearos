@@ -778,6 +778,9 @@ private fun LyricsApp(
         refinedCredits = settings.refinedCredits,
         backgroundPop = settings.backgroundPop && !appleMusicStyle,
         keepOverlappingLines = settings.keepOverlappingLines,
+        romanizationHighlight = settings.romanizationHighlight,
+        // The Apple Music style and Refreshed Simple pose their words their own way.
+        animatedUnderRows = settings.animatedUnderRows && !appleMusicStyle && !(settings.refreshedSimpleLyrics && settings.simpleLyricsMode),
         syllableMerge = settings.syllableMerge,
         syllablePace = settings.syllablePace,
         distanceBlurEnabled = settings.distanceBlur && !lowPerformance,

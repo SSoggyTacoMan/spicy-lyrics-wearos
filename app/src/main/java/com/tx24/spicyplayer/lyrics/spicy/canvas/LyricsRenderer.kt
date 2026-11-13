@@ -169,7 +169,7 @@ private inline fun DrawScope.drawGlowThenText(
  * The position percent maps over [fullHeight]; each wrapped row fragment maps the band into its
  * own local vertical space via [startYOffset].
  */
-private fun DrawScope.drawVerticalWipeText(
+internal fun DrawScope.drawVerticalWipeText(
     layoutResult: TextLayoutResult,
     xPos: Float,
     yPos: Float,
@@ -321,7 +321,7 @@ private const val REFERENCE_LYRIC_SIZE_CSS_PX = 56f
  * One desktop CSS px in our px, relative to the text: effects keep the same size next to the
  * letters as on a desktop page, whatever the screen density.
  */
-private fun textSizePx(layout: TextLayoutResult): Float =
+internal fun textSizePx(layout: TextLayoutResult): Float =
     with(layout.layoutInput) { with(density) { style.fontSize.toPx() } }
 
 private fun cssPx(layout: TextLayoutResult, isBackground: Boolean): Float =

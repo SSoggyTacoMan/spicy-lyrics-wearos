@@ -162,4 +162,21 @@ class LetterSynthesizerTest {
         )
         assertEquals(listOf("sunset"), merged.map { it.text })
     }
+
+    @Test
+    fun `a held word's row is split into the romanization's own letters over the word's window`() {
+        val config = RenderConfig.FULL
+        // One held kanji, 1500 ms: the lyric shows a single letter, its romaji row three.
+        val held = LetterSynthesizer.apply(
+            listOf(com.tx24.spicyplayer.lyrics.spicy.models.Line(words = listOf(Word("彩", 0, 1500, romanizedText = "iro")), startMs = 0, endMs = 1500)),
+            config, romanized = false,
+        ).single().words.single()
+        assertEquals(1, held.letters.size)
+        val row = LetterSynthesizer.rowWord(held, "iro", config)
+        assertEquals(listOf("i", "r", "o"), row.letters.map { it.char })
+        // The same window the word got, trimmed once and not twice.
+        assertEquals(held.startMs, row.startMs)
+        assertEquals(held.endMs, row.endMs)
+        assertEquals(0L to 1500L, LetterSynthesizer.sungSpan(held, config))
+    }
 }

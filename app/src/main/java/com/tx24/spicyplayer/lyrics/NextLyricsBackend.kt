@@ -467,6 +467,11 @@ internal class NextLyricsBackend(context: Context, clientKey: String) {
         get() = preferences.getBoolean("splitBackgroundVocals", true)
         set(value) = preferences.edit().putBoolean("splitBackgroundVocals", value).apply()
 
+    /** On-device Japanese romaji spelled as lyric pages write it (kyou); off, as said with macrons (kyō). */
+    var writtenRomaji: Boolean
+        get() = preferences.getBoolean("writtenRomaji", true)
+        set(value) = preferences.edit().putBoolean("writtenRomaji", value).apply()
+
     /** Human-written romanizations from Genius over the on-device ones (off until asked for: it asks Genius). */
     var humanRomanizations: Boolean
         get() = preferences.getBoolean("humanRomanizations", false)

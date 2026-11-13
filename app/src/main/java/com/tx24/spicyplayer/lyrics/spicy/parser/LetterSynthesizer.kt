@@ -168,6 +168,30 @@ object LetterSynthesizer {
         return word.copy(startMs = windowStart, endMs = windowEnd, isLetterGroup = true, letters = letters)
     }
 
+    /**
+     * The word an under-line row draws for [word]: its romanization [text] as a word of its own,
+     * timed as the word is and split into letters by the same rules, so the row animates exactly
+     * as a line of that text would. [word] has already been through [synthesize], which moved a
+     * held word's times to its letters' window; they're put back first.
+     */
+    fun rowWord(word: Word, text: String, config: RenderConfig): Word {
+        val (start, end) = sungSpan(word, config)
+        return synthesize(
+            word.copy(text = text, romanizedText = text, startMs = start, endMs = end, isLetterGroup = false, letters = emptyList()),
+            config, romanized = true,
+        )
+    }
+
+    /** When [word] is sung: its times, with a held word's moved window put back. */
+    fun sungSpan(word: Word, config: RenderConfig): Pair<Long, Long> {
+        if (!word.isLetterGroup) return word.startMs to word.endMs
+        return (word.startMs + if (config.isSimple) -21L else 0L) to (word.endMs + when {
+            config.isAppleMusic -> 0L
+            config.isSimple -> -40L
+            else -> 250L
+        })
+    }
+
     private fun evenly(graphemes: List<String>, from: Long, to: Long): List<Letter> {
         val span = (to - from).toFloat() / graphemes.size
         return graphemes.mapIndexed { i, grapheme ->

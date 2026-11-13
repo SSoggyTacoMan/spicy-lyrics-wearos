@@ -284,6 +284,7 @@ fun LyricsView(
                         if (letterConfig.isAppleMusic) AppleMusicMotion.BACKGROUND_SIZE else 0.75f,
                         romanizationMode,
                         refreshedSimple = letterConfig.isRefreshedSimple,
+                        animatedRows = letterConfig.takeIf { it.animatedUnderRows },
                     ) else LyricsLayoutCalculator.calculateLineLayouts(
                         display, canvasWidth, textMeasurer, density.density, incomingType, fontSizeScale, romanized, letterConfig.isSimple,
                         letterConfig.wideDuetPadding,

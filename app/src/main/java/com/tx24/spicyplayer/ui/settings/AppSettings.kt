@@ -45,6 +45,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var romanize by boolean("romanize", false)
     var romanizationMode by enum("romanizationMode", com.tx24.spicyplayer.lyrics.spicy.romanization.RomanizationMode.Replace)
     var translationMode by enum("translationMode", com.tx24.spicyplayer.translation.TranslationMode.UnderLine)
+    var romanizationHighlight by enum("romanizationHighlight", com.tx24.spicyplayer.lyrics.spicy.RomanizationHighlight.Sweep)
+    var animatedUnderRows by boolean("animatedUnderRows", false)
 
     var lyricsStyle by enum("lyricsStyle", LyricsStyle.Spicy)
     var simpleLyricsMode by boolean("simpleLyricsMode", false)

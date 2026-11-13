@@ -11,6 +11,9 @@ import com.tx24.spicyplayer.lyrics.spicy.RenderConfig
 import com.tx24.spicyplayer.lyrics.spicy.models.Line
 import com.tx24.spicyplayer.lyrics.spicy.models.LyricsType
 import com.tx24.spicyplayer.lyrics.spicy.models.Word
+import com.tx24.spicyplayer.lyrics.spicy.RomanizationHighlight
+import com.tx24.spicyplayer.lyrics.spicy.parser.LetterSynthesizer
+import com.tx24.spicyplayer.translation.romanizationNote
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -96,6 +99,10 @@ class LyricsAnimator(
         const val DOT_GLOW_DAMPING = 0.5f
         const val DOT_OPACITY_FREQUENCY = 1f
         const val DOT_OPACITY_DAMPING = 0.5f
+
+        /** Added to a line's index to key the springs of its under-line row apart from the line's own. */
+        const val ROW_KEY = 1 shl 20
+        val NO_HIGHLIGHT: List<Float> = emptyList()
 
         // Line-mode whole-line glow spring.
         const val LINE_GLOW_FREQUENCY = 1f
@@ -214,6 +221,13 @@ class LyricsAnimator(
     private val cachedLineGradient = mutableMapOf<Int, Float>()
     private val cachedLineGlow = mutableMapOf<Int, Float>()
 
+    /** The under-line row's words (see [LetterSynthesizer.rowWord]) and their frozen states, per line. */
+    private val rowWordsCache = mutableMapOf<Int, List<Word>>()
+    private val cachedRowStates = mutableMapOf<Int, List<WordAnimState>>()
+
+    /** Word-by-word row highlight easing per active line: pairs of (lit level, glow) per word. */
+    private val rowHighlights = mutableMapOf<Int, FloatArray>()
+
     /**
      * The lines the word caches were built from. Lines get rebuilt (romanization switched on,
      * letters re-synthesized) with different words and letter counts, so the per-word caches and
@@ -237,6 +251,9 @@ class LyricsAnimator(
         cachedWordStates.clear()
         cachedLineGradient.clear()
         cachedLineGlow.clear()
+        rowWordsCache.clear()
+        cachedRowStates.clear()
+        rowHighlights.clear()
         appleFinalStates.clear()
         presenceAnims.clear()
         presenceSprings.clear()
@@ -281,6 +298,9 @@ class LyricsAnimator(
             cachedFor = lines
             cachedRomanizationFor = romanizationLines
             cachedWordStates.clear()
+            rowWordsCache.clear()
+            cachedRowStates.clear()
+            rowHighlights.clear()
             appleFinalStates.clear()
             wordSpringsMap.clear()
             letterSpringsMap.clear()
@@ -323,7 +343,8 @@ class LyricsAnimator(
             // line — the renderer treats every non-active line's words identically regardless of
             // Sung/NotSung, so line opacity can go back to tracking lineState alone.
             val stillFinalizing = lineState == ElementState.Sung &&
-                (shouldFinalize(lines, lineIdx, processedPosition) || !isSettled(cachedWordStates[lineIdx]))
+                (shouldFinalize(lines, lineIdx, processedPosition) || !isSettled(cachedWordStates[lineIdx]) ||
+                    cachedRowStates[lineIdx]?.let { !isSettled(it) } == true)
             // A sung line that ends while one above it is still being sung (overlapping lines,
             // background vocals) stays on screen, dimmed, instead of fading out early.
             val keptAfterActive = config.keepOverlappingLines && lineState == ElementState.Sung && !line.isInterlude &&
@@ -422,6 +443,52 @@ class LyricsAnimator(
                 }
             }
 
+            if (config.animatedUnderRows && lyricsType == LyricsType.Syllable && !line.isInterlude && !line.isSongwriter) {
+                // The translation row under a word-synced line sweeps over the line's whole time.
+                when (lineState) {
+                    ElementState.Active -> {
+                        val pct = progress(processedPosition, line.startMs, line.endMs)
+                        lineGradient = pct * 100f
+                        val spring = lineGlowSprings.getOrPut(lineIdx) {
+                            SpringSimulation(lineGlowSpline.at(0f), LINE_GLOW_FREQUENCY, LINE_GLOW_DAMPING)
+                        }
+                        spring.setGoal(lineGlowSpline.at(pct))
+                        lineGlow = spring.step(deltaTime)
+                    }
+                    ElementState.NotSung -> { lineGradient = -20f; lineGlow = 0f }
+                    ElementState.Sung -> { lineGradient = 100f; lineGlow = 0f }
+                }
+                cachedLineGradient[lineIdx] = lineGradient
+                cachedLineGlow[lineIdx] = lineGlow
+            }
+
+            var rowWordStates: List<WordAnimState> = emptyList()
+            var rowHighlight = NO_HIGHLIGHT
+            if (lyricsType == LyricsType.Syllable && !line.isInterlude && !line.isSongwriter && !line.lineTimed && !config.isAppleMusic) {
+                val noteLine = romanizationLines?.getOrNull(lineIdx) ?: line
+                if (config.animatedUnderRows) {
+                    // The under-line romanization is a line of its own: its words run through the same
+                    // springs as the lyrics, each held one split into its own letters.
+                    val rowWords = rowWordsCache.getOrPut(lineIdx) {
+                        romanizationNote(noteLine)?.pieces?.map { LetterSynthesizer.rowWord(it.word, it.text, config) } ?: emptyList()
+                    }
+                    if (rowWords.isNotEmpty()) rowWordStates = when {
+                        lineState == ElementState.Active -> rowWords.mapIndexed { i, word ->
+                            animateWord(word, processedPosition, deltaTime, lineIdx + ROW_KEY, i)
+                        }.also { cachedRowStates[lineIdx] = it }
+                        stillFinalizing -> rowWords.mapIndexed { i, word ->
+                            finalizeWord(word, deltaTime, lineIdx + ROW_KEY, i)
+                        }.also { cachedRowStates[lineIdx] = it }
+                        else -> {
+                            cachedRowStates.remove(lineIdx)
+                            emptyList()
+                        }
+                    }
+                } else if (config.romanizationHighlight == RomanizationHighlight.Word && lineState == ElementState.Active) {
+                    rowHighlight = stepRowHighlight(lineIdx, noteLine, processedPosition, deltaTime)
+                } else rowHighlights.remove(lineIdx)
+            }
+
             val blur = if (!config.distanceBlurEnabled || suppressBlur || isActive || minimalLook && keptAfterActive) 0f
                 else blurAmounts.getOrElse(lineIdx) { 0f }
 
@@ -437,6 +504,8 @@ class LyricsAnimator(
                     RefreshedMotion.dotBreath(processedPosition - line.startMs, line.duration) else 1f,
                 isActive = isActive,
                 wordStates = wordStates,
+                rowWordStates = rowWordStates,
+                rowHighlight = rowHighlight,
                 isBackground = line.isBackground,
                 isSongwriter = line.isSongwriter,
                 lineGradientPercent = lineGradient,
@@ -1223,16 +1292,58 @@ class LyricsAnimator(
         letterStates = emptyList(),
     )
 
+    /**
+     * The word-by-word romanization highlight of an active line, eased over time: a word being
+     * sung is lit whole (level 2) with a glow, then settles to the line's lit colour (1) once
+     * sung; the words ahead stay dim (0). Lighting up is quick and settling slow.
+     */
+    private fun stepRowHighlight(lineIdx: Int, noteLine: Line, t: Double, deltaTime: Float): List<Float> {
+        val words = noteLine.words
+        // Per word: lit level, its speed, glow, its speed. Each eases to its target without
+        // overshoot, so a word fades up as it's sung and fades back down after, never snaps.
+        var eased = rowHighlights[lineIdx]
+        if (eased == null || eased.size != words.size * 4) {
+            eased = FloatArray(words.size * 4)
+            rowHighlights[lineIdx] = eased
+        }
+        fun ease(at: Int, target: Float, omega: Float) {
+            val accel = omega * omega * (target - eased[at]) - 2f * omega * eased[at + 1]
+            eased[at + 1] += accel * deltaTime
+            eased[at] = (eased[at] + eased[at + 1] * deltaTime).coerceIn(0f, 2f)
+        }
+        val out = FloatArray(words.size * 2)
+        words.forEachIndexed { i, word ->
+            val (start, end) = LetterSynthesizer.sungSpan(word, config)
+            val state = elementState(t, start, end)
+            val p = progress(t, start, end)
+            val litTarget = when (state) { ElementState.Active -> 2f; ElementState.Sung -> 1f; ElementState.NotSung -> 0f }
+            val glowTarget = when {
+                state != ElementState.Active -> 0f
+                p < 0.15f -> p / 0.15f
+                p <= 0.6f -> 1f
+                else -> (1f - p) / 0.4f
+            }
+            // Fading up takes about a third of a second, settling back to the line's colour about a second.
+            ease(i * 4, litTarget, if (litTarget == 2f) 9f else if (litTarget == 1f) 3.5f else 6f)
+            ease(i * 4 + 2, glowTarget, 8f)
+            out[i * 2] = eased[i * 4]
+            out[i * 2 + 1] = eased[i * 4 + 2].coerceAtLeast(0f)
+        }
+        return out.asList()
+    }
+
     // ── Spring lookup ───────────────────────────────────────────────────────────────
 
     /** Drops what a line remembers of being sung, so it animates from the start the next time. */
     private fun forgetLine(lineIdx: Int) {
         cachedWordStates.remove(lineIdx)
+        cachedRowStates.remove(lineIdx)
+        rowHighlights.remove(lineIdx)
         cachedLineGradient.remove(lineIdx)
         cachedLineGlow.remove(lineIdx)
         lineGlowSprings.remove(lineIdx)
-        wordSpringsMap.keys.removeAll { it / 100000L == lineIdx.toLong() }
-        letterSpringsMap.keys.removeAll { it / 1000000L == lineIdx.toLong() }
+        wordSpringsMap.keys.removeAll { it / 100000L == lineIdx.toLong() || it / 100000L == (lineIdx + ROW_KEY).toLong() }
+        letterSpringsMap.keys.removeAll { it / 1000000L == lineIdx.toLong() || it / 1000000L == (lineIdx + ROW_KEY).toLong() }
         dotSpringsMap.keys.removeAll { it / 3L == lineIdx.toLong() }
     }
 
