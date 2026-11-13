@@ -159,7 +159,9 @@ fun LyricsView(
     val incomingFooter = footer
     val lyricsType = shown?.lyricsType ?: incomingType
     val footer = shown?.footer ?: incomingFooter
-    val coroutineScope = rememberCoroutineScope()
+    // The renderer's tweens run in step with the scroll spring and the lyric clock, which ignore
+    // the system animation scale; the scope must too, or a 0.5x setting halves every tween.
+    val coroutineScope = rememberCoroutineScope { UnscaledMotion }
 
     val animator = remember(shownId) { LyricsAnimator(coroutineScope, config) }
     LaunchedEffect(config) { animator.config = config }
@@ -384,7 +386,11 @@ fun LyricsView(
                         }
                         val sweeps = sweepGeometries
                         val measured = sweepMeasured
+                        // Decided first: background vocals open and fold on the line the scroll
+                        // moves to, so the room they take and the scroll start in the same frame.
+                        val decision = scrollPolicy.decide(currentLines, currentTime, leadMs = scrollConfigUpdated.leadMs)
                         animStates = animator.animate(currentLines, currentTime, deltaTime, scrollManager.hideLineBlur, lyricsType, romanizationLinesUpdated,
+                            scrollTarget = decision.targetIndex,
                             lineGeometry = if (!refreshedUpdated) null else { index ->
                                 if (index !in sweeps.indices) null else {
                                     if (!measured[index]) { sweeps[index] = currentLayouts.getOrNull(index)?.let(::sweepGeometry); measured[index] = true }
@@ -479,7 +485,6 @@ fun LyricsView(
 
                         // 2. Resolve the lead/background overlap policy, then anchor
                         // that one line: its centre at the focus point, or its top (compact mode).
-                        val decision = scrollPolicy.decide(currentLines, currentTime, leadMs = scrollConfigUpdated.leadMs)
                         // A lead with no words of its own (the line is only background vocals)
                         // has no height; its background vocals stand in for it.
                         val targetIndex = decision.targetIndex?.let { index ->
@@ -847,4 +852,8 @@ private fun getLineStartX(
     } else {
         layout.contentStartX
     }
+}
+
+private object UnscaledMotion : androidx.compose.ui.MotionDurationScale {
+    override val scaleFactor: Float get() = 1f
 }

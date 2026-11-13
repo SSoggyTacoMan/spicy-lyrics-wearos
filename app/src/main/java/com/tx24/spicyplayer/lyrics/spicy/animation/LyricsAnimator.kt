@@ -280,6 +280,8 @@ class LyricsAnimator(
         romanizationLines: List<Line>? = null,
         /** Refreshed Simple: the measured widths of a line's words and letters, for the fill's edge. */
         lineGeometry: ((Int) -> LineSweepGeometry?)? = null,
+        /** The line the scroll is moving to, if any: Apple Music background vocals open and fold with it. */
+        scrollTarget: Int? = null,
     ): List<LineAnimState> {
         if (lines.isEmpty()) return emptyList()
 
@@ -317,7 +319,7 @@ class LyricsAnimator(
         if (blurAmounts.size != lines.size) blurAmounts = FloatArray(lines.size)
 
         val states = lines.map { elementState(processedPosition, it.startMs, it.endMs) }
-        if (config.isAppleMusic) return animateAppleMusic(lines, states, processedPosition, deltaTime, suppressBlur, lyricsType, romanizationLines)
+        if (config.isAppleMusic) return animateAppleMusic(lines, states, processedPosition, deltaTime, suppressBlur, lyricsType, romanizationLines, scrollTarget)
         // Minimal's `.LyricsContent:not(.HideLineBlur)` rules drop out while the user scrolls.
         val minimalLook = config.isMinimal && !suppressBlur
         // `.LyricsContent:not(:has(.line.Active)):not(:has(.line.NotSung))`: the song is over.
@@ -604,6 +606,7 @@ class LyricsAnimator(
         userScrolling: Boolean,
         lyricsType: LyricsType,
         romanizationLines: List<Line>?,
+        scrollTarget: Int?,
     ): List<LineAnimState> {
         if (appleOrdinalsFor !== lines) {
             appleOrdinalsFor = lines
@@ -670,11 +673,20 @@ class LyricsAnimator(
             // Background vocals open while they or their lead are sung, and stay open until a later
             // line starts: the last one then folds as the next opens, with the scroll, in one move.
             val lead = if (line.isBackground) appleLeads[lineIdx] else -1
-            val sung = line.isBackground && (lineState == ElementState.Active || (lead >= 0 && states[lead] == ElementState.Active))
+            // The room a vocal takes moves the rows below it, and the scroll moves them too: the two
+            // have to start together or the rows go up with the scroll and back down when the room
+            // opens. So they follow the line the scroll goes to, not the moment that line turns
+            // Active (which can come later); with nothing to scroll to, the line's own state.
+            val owner = if (lead >= 0) lead else lineIdx
+            val scrolledTo = scrollTarget != null && scrollTarget == owner
+            val scrolledPast = scrollTarget != null && scrollTarget > lineIdx &&
+                lines[scrollTarget].groupId.let { it == null || it != line.groupId }
+            val sung = line.isBackground && (lineState == ElementState.Active || scrolledTo ||
+                (scrollTarget == null && lead >= 0 && states[lead] == ElementState.Active))
             val presenceTarget = if (!line.isBackground) 1f else {
                 val wasOpen = presenceSprings[lineIdx]?.goal == 1f
                 val kept = wasOpen && lineState == ElementState.Sung &&
-                    (lead < 0 || states[lead] == ElementState.Sung) && !movedOn(lines, states, lineIdx)
+                    (lead < 0 || states[lead] == ElementState.Sung) && !movedOn(lines, states, lineIdx) && !scrolledPast
                 if (sung || kept) 1f else 0f
             }
             val presence = if (!line.isBackground) 1f else {
