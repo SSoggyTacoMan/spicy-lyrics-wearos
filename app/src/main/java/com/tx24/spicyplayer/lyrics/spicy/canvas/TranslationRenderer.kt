@@ -78,15 +78,20 @@ internal fun DrawScope.drawTranslationText(
                         val height = word.textLayoutResult.size.height.toFloat()
                         val wordPivot = Offset(x - word.startXOffset + word.fullWordWidth * word.anchor, top + height / 2f)
                         val glow = letter?.glow ?: state.glow
-                        val glowAlpha = (glow * if (letter != null) 1.85f else 0.35f).coerceIn(0f, 1f) * ROW_OPACITY * animation.opacity
-                        val shadow = if (!animation.suppressShadows && glowAlpha > 0.02f)
-                            Shadow(Color.White.copy(alpha = glowAlpha), blurRadius = (4f + (if (letter != null) 12f else 2f) * glow) * size / 56f) else null
+                        // Bloom's glow is made up for the row's opacity, so it reads as strongly as the line's.
+                        val glowAlpha = if (config.isBloom) glow.coerceIn(0f, 1f) * animation.opacity
+                            else (glow * if (letter != null) 1.85f else 0.35f).coerceIn(0f, 1f) * ROW_OPACITY * animation.opacity
+                        val shadow = if (!animation.suppressShadows && glowAlpha > 0.02f) Shadow(Color.White.copy(alpha = glowAlpha),
+                            blurRadius = if (config.isBloom) (letter?.glowRadius ?: 0f) * size
+                                else (4f + (if (letter != null) 12f else 2f) * glow) * size / 56f) else null
                         withTransform({
                             scale(boostedScale(state.scale, boost), boostedScale(state.scale, boost), wordPivot)
                             translate(top = boostedLift(state.yOffset, boost) * size)
                             if (letter != null) {
                                 scale(boostedScale(letter.scale, boost), boostedScale(letter.scale, boost), Offset(x + width / 2f, top + height / 2f))
-                                translate(top = boostedLift(letter.yOffset, boost) * size * 2f)
+                                // Bloom's letter poses are in em of the letter's own text, Spring's in lyric sizes, doubled.
+                                if (config.isBloom) translate(left = letter.xOffset * boost * size, top = boostedLift(letter.yOffset, boost) * size)
+                                else translate(top = boostedLift(letter.yOffset, boost) * size * 2f)
                             }
                         }) {
                             if (letter != null) drawWipeText(word.textLayoutResult, x, top, width, width, 0f, letter.gradientPosition,

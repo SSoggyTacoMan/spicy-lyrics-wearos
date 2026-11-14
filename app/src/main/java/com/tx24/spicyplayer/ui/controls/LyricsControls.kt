@@ -81,8 +81,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -151,7 +149,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tx24.spicyplayer.lyrics.spicy.models.MiniCredit
 import com.tx24.spicyplayer.ui.nowplaying.MiniCreditLine
-import com.tx24.spicyplayer.ui.nowplaying.PlayerBelowRows
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextOverflow
 import com.tx24.spicyplayer.lyrics.spicy.canvas.LyricsLayoutCalculator
@@ -431,12 +428,9 @@ internal fun fitButtons(width: Dp, count: Int, minSize: Dp, maxSize: Dp, minGap:
     return ButtonFit(slots, size, gap)
 }
 
-/**
- * The buttons in [width], with the ones that don't fit behind a More button at the row's end. With
- * [vertical] they stack in a column instead, and [width] is the column's length.
- */
+/** The buttons in [width], with the ones that don't fit behind a More button at the row's end. */
 @Composable
-private fun FloatingButtons(actions: List<FloatingAction>, width: Dp, minSize: Dp, maxSize: Dp, minGap: Dp, maxGap: Dp, vertical: Boolean = false) {
+private fun FloatingButtons(actions: List<FloatingAction>, width: Dp, minSize: Dp, maxSize: Dp, minGap: Dp, maxGap: Dp) {
     val grouped = LocalGroupedControls.current
     // One capsule holds the buttons: it takes a little of the width, and the buttons sit closer, since
     // only a toggle that is on shows where its circle ends.
@@ -449,14 +443,9 @@ private fun FloatingButtons(actions: List<FloatingAction>, width: Dp, minSize: D
     else actions.sortedByDescending { it.keep }.take(fit.slots - 1).toSet()
     val overflow = actions.filter { it !in kept }
     fun icon(dp: Float) = fit.size * (dp / FLOATING_SIZE.value)
-    @Composable
-    fun Stack(modifier: Modifier, content: @Composable () -> Unit) {
-        if (vertical) Column(modifier, verticalArrangement = Arrangement.spacedBy(fit.gap)) { content() }
-        else Row(modifier, horizontalArrangement = Arrangement.spacedBy(fit.gap)) { content() }
-    }
     if (grouped) {
         GlassCapsule {
-            Stack(Modifier.padding(fit.size * CAPSULE_PAD)) {
+            Row(Modifier.padding(fit.size * CAPSULE_PAD), horizontalArrangement = Arrangement.spacedBy(fit.gap)) {
                 actions.filter { it in kept }.forEach { action ->
                     CapsuleButton(onClick = action.onClick, contentDescription = action.label, size = fit.size, toggled = action.toggled) { action.icon(::icon) }
                 }
@@ -465,7 +454,7 @@ private fun FloatingButtons(actions: List<FloatingAction>, width: Dp, minSize: D
         }
         return
     }
-    Stack(Modifier) {
+    Row(horizontalArrangement = Arrangement.spacedBy(fit.gap)) {
         actions.filter { it in kept }.forEach { action ->
             GlassButton(onClick = action.onClick, contentDescription = action.label, size = fit.size) { action.icon(::icon) }
         }
@@ -718,99 +707,6 @@ fun CoverControls(
     }
 }
 
-/** A player's button for liking the song, told by its name (not a dislike). */
-internal val SessionCustomAction.isLike: Boolean
-    get() {
-        val text = "$name $action".lowercase()
-        return "dislike" !in text && listOf("like", "favorite", "favourite", "heart", "love").any { it in text }
-    }
-
-/**
- * The view buttons in a column beside the landscape cover when the player sits under it: the same
- * capsule as over the cover, stacked, with the ones that don't fit in [length] behind More. The
- * player's like button is in the player rows, so it isn't repeated here.
- */
-@Composable
-fun CoverSideControls(
-    controls: PlaybackControlsState,
-    romanizeAvailable: Boolean,
-    romanized: Boolean,
-    onToggleRomanize: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenLyricsManager: (() -> Unit)?,
-    onOpenQueue: (() -> Unit)?,
-    onOpenSource: (() -> Unit)?,
-    onOpenQuickSettings: (() -> Unit)?,
-    expanded: Boolean,
-    onToggleExpanded: () -> Unit,
-    onSwapSide: (() -> Unit)?,
-    coverOnRight: Boolean,
-    length: Dp,
-    modifier: Modifier = Modifier,
-    onEnterPip: (() -> Unit)? = null,
-    showResync: Boolean = true,
-    showExpand: Boolean = true,
-) {
-    val others = controls.customActions.filter { it.kind == ActionKind.Other && !it.isLike }
-    Box(modifier) {
-        FloatingButtons(
-            floatingActions(controls, others, romanizeAvailable, romanized, onToggleRomanize, onOpenSettings, onOpenLyricsManager, onOpenQuickSettings, expanded, onToggleExpanded, onSwapSide, coverOnRight, showResync, showExpand, onOpenQueue = onOpenQueue, onOpenSource = onOpenSource, onEnterPip = onEnterPip),
-            length, minSize = SIDE_BUTTON_MIN, maxSize = SIDE_BUTTON_MAX, minGap = COVER_BUTTON_GAP, maxGap = SpicySpacing.S2,
-            vertical = true,
-        )
-    }
-}
-
-/**
- * The player under the landscape cover, always showing: the song ([metadata], given the width left
- * beside the like button) with the player's like button at its end when it has one, the timeline
- * with its times, and the transport. Each row has the height [rows] gives it, so the stack ends
- * where the metrics say.
- */
-@Composable
-fun PlayerBelowControls(
-    controls: PlaybackControlsState,
-    rows: PlayerBelowRows,
-    metadata: @Composable (widthPx: Float, modifier: Modifier) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val shuffle = controls.customActions.firstOrNull { it.kind == ActionKind.Shuffle }
-    val repeat = controls.customActions.firstOrNull { it.kind == ActionKind.Repeat }
-    val like = controls.customActions.firstOrNull { it.kind == ActionKind.Other && it.isLike && it.icon != null }
-    val density = LocalDensity.current
-    fun Float.dp() = with(density) { toDp() }
-    BoxWithConstraints(modifier.fillMaxWidth()) {
-        val side = maxWidth
-        Column(Modifier.fillMaxWidth()) {
-            Spacer(Modifier.height(rows.metaGapPx.dp()))
-            Box(Modifier.fillMaxWidth().height(rows.metaHeightPx.dp())) {
-                val likeRoom = if (like != null) TOUCH_SIZE else 0.dp
-                BoxWithConstraints(Modifier.fillMaxSize().padding(end = likeRoom)) {
-                    metadata(with(density) { maxWidth.toPx() }, Modifier.fillMaxSize())
-                }
-                if (like != null) {
-                    // The touch area is a full 48dp square, taller than the row: it spills over the
-                    // gaps above and below.
-                    Box(Modifier.align(Alignment.CenterEnd).requiredSize(TOUCH_SIZE)) {
-                        SideAction(like, controls, maxOf(18.dp, side * 0.052f), Modifier.fillMaxSize())
-                    }
-                }
-            }
-            Spacer(Modifier.height(rows.timelineGapPx.dp()))
-            Box(Modifier.fillMaxWidth().height(rows.timelineHeightPx.dp()).wrapContentHeight(Alignment.Top, unbounded = true)) {
-                Timeline(controls, { 1f }, Modifier, showCredit = false)
-            }
-            Spacer(Modifier.height(rows.controlsGapPx.dp()))
-            Box(Modifier.fillMaxWidth().height(rows.controlsHeightPx.dp()), contentAlignment = Alignment.Center) {
-                PlaybackRow(
-                    controls, shuffle, repeat, Modifier,
-                    skipWidth = coverSkipWidth(side, shuffle, repeat), fillSlots = true, dropEmptySides = true,
-                )
-            }
-        }
-    }
-}
-
 /**
  * The cover stage's dock, laid along the bottom of a box as wide as the cover, like a video
  * player's: [metadata] (the song), the timeline with its times under it, and the transport. The
@@ -930,9 +826,6 @@ private val SIDE_MARGIN = 28.dp
 private val CONTROLS_MAX_WIDTH = 560.dp
 /** The glass buttons over the cover: as big as fits in one row, between these; the rest go in More. */
 private val COVER_BUTTON_MAX = 40.dp
-/** The column beside the cover: full 48dp touch targets. */
-private val SIDE_BUTTON_MIN = 44.dp
-private val SIDE_BUTTON_MAX = 48.dp
 private val COVER_BUTTON_MIN = 32.dp
 private val COVER_BUTTON_GAP = 6.dp
 /** The gaps between buttons inside the grouped capsule. */

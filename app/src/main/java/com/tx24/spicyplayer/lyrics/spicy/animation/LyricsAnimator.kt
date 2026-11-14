@@ -269,6 +269,8 @@ class LyricsAnimator(
         romanizationLines: List<Line>? = null,
         /** Bloom: the measured widths of a line's words and letters, for the fill's edge. */
         lineGeometry: ((Int) -> LineSweepGeometry?)? = null,
+        /** Bloom: the same for a line's animated romanization row. */
+        rowGeometry: ((Int) -> LineSweepGeometry?)? = null,
         /** The line the scroll is moving to, if any: under Bloom it grows to full size as the scroll brings it in. */
         scrollTarget: Int? = null,
         /**
@@ -477,8 +479,10 @@ class LyricsAnimator(
                         romanizationNote(noteLine)?.pieces?.map { LetterSynthesizer.rowWord(it.word, it.text, config) } ?: emptyList()
                     }
                     if (rowWords.isNotEmpty()) rowWordStates = when {
-                        // Under Bloom the row only fills while its line is sung; after that it dims with the line.
-                        config.isBloom -> if (lineState == ElementState.Active) bloomRowStates(rowWords, processedPosition) else emptyList()
+                        // Under Bloom the row moves as the line's words do: one fill edge along it, each piece
+                        // lifting as it is sung, held ones swelling, all coming back down once the line ends.
+                        config.isBloom -> bloomRow(lineIdx, rowWords, processedPosition, line, lineState, rowGeometry,
+                            endMs = if (lineIdx < earlySungBefore) minOf(line.endMs, sungEnd(line)) else line.endMs)
                         lineState == ElementState.Active -> rowWords.mapIndexed { i, word ->
                             animateWord(word, processedPosition, deltaTime, lineIdx + ROW_KEY, i)
                         }.also { cachedRowStates[lineIdx] = it }
@@ -820,20 +824,18 @@ class LyricsAnimator(
     }
 
     /**
-     * The words of an animated row under Bloom at [t]: each fills in Bloom's tones over its own time
-     * (a held one letter by letter), with no lift, swell or glow of its own.
+     * The animated romanization row under Bloom: its pieces run like a line's words ([bloomLine]),
+     * from the line's start until they have settled back down after its end. Empty before and after.
      */
-    private fun bloomRowStates(words: List<Word>, t: Double): List<WordAnimState> = words.map { word ->
-        WordAnimState(
-            scale = 1f, yOffset = 0f, glow = 0f,
-            gradientPosition = -50f + 150f * progress(t, word.startMs, word.endMs),
-            state = elementState(t, word.startMs, word.endMs),
-            isLetterGroup = word.isLetterGroup,
-            letterStates = if (!word.isLetterGroup) emptyList() else word.letters.map { letter ->
-                LetterAnimState(gradientPosition = -50f + 150f * progress(t, letter.startMs, letter.endMs),
-                    scale = 1f, yOffset = 0f, glow = 0f)
-            },
-        )
+    private fun bloomRow(
+        lineIdx: Int, words: List<Word>, t: Double, line: Line, lineState: ElementState,
+        geometryOf: ((Int) -> LineSweepGeometry?)?, endMs: Long,
+    ): List<WordAnimState> {
+        if (lineState == ElementState.NotSung) return emptyList()
+        val key = lineIdx + ROW_KEY
+        val states = bloomLine(key, words, t, line, geometryOf?.let { f -> { k: Int -> f(k - ROW_KEY) } }, endMs)
+        // Settled and sung: the plain row says the same.
+        return if (lineState == ElementState.Sung && bloomFinal.containsKey(key)) emptyList() else states
     }
 
     /** A line's size under Bloom: full while it's [focused], a little smaller at rest. */
@@ -864,7 +866,7 @@ class LyricsAnimator(
         // reached; earlier (a seek back) the line settles again.
         if (t < endMs) bloomFinal.remove(key)
         else bloomFinal[key]?.let { (from, states) -> if (t >= from) return states }
-        val geometry = if (key < ROW_KEY) geometryOf?.invoke(key) else null
+        val geometry = geometryOf?.invoke(key)
         val n = words.size
         val fits = geometry != null && geometry.wordWidths.size == n && geometry.fontPx > 0f
         val fontPx = geometry?.fontPx ?: 0f

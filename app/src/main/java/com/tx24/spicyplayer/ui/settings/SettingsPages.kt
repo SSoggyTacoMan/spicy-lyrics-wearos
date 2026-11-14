@@ -24,7 +24,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.material.icons.rounded.VerticalAlignBottom
 import androidx.compose.material.icons.rounded.VerticalAlignTop
 import androidx.compose.material.icons.rounded.DragIndicator
 import androidx.compose.runtime.key
@@ -973,13 +972,6 @@ internal fun ControlsContent(settings: AppSettings) {
         onCheckedChange = { settings.timelineOutsideCover = it },
         description = "In landscape, show the timeline under the cover, above the song, where it always stays.",
         icon = Icons.Rounded.LinearScale,
-    )
-    ToggleRow(
-        label = "Player Below the Cover",
-        checked = settings.playerBelowCover,
-        onCheckedChange = { settings.playerBelowCover = it },
-        description = "In landscape, move the cover out to the edge and keep the player under it, always showing.",
-        icon = Icons.Rounded.VerticalAlignBottom,
     )
     SettingsSection("Floating Buttons") {
         ToggleRow(

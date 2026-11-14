@@ -330,6 +330,8 @@ fun LyricsView(
             var lastLayouts: List<LineLayout>? = null
             var sweepGeometries: Array<LineSweepGeometry?> = arrayOfNulls(0)
             var sweepMeasured = BooleanArray(0)
+            var rowGeometries: Array<LineSweepGeometry?> = arrayOfNulls(0)
+            var rowMeasured = BooleanArray(0)
             // The first frame of a document, and the first after a rest, carry no real gap.
             var resumed = true
             var frameIntervalS = nominalFrameIntervalS(hostView.display?.refreshRate)
@@ -374,9 +376,13 @@ fun LyricsView(
                         if (relaid || sweepGeometries.size != currentLayouts.size) {
                             sweepGeometries = arrayOfNulls(currentLayouts.size)
                             sweepMeasured = BooleanArray(currentLayouts.size)
+                            rowGeometries = arrayOfNulls(currentLayouts.size)
+                            rowMeasured = BooleanArray(currentLayouts.size)
                         }
                         val sweeps = sweepGeometries
                         val measured = sweepMeasured
+                        val rowSweeps = rowGeometries
+                        val rowDone = rowMeasured
                         // Decided first: background vocals open and fold on the line the scroll
                         // moves to, so the room they take and the scroll start in the same frame.
                         // Bloom's timed scroll takes longer into a line after a pause. In the floating
@@ -393,6 +399,12 @@ fun LyricsView(
                                 if (index !in sweeps.indices) null else {
                                     if (!measured[index]) { sweeps[index] = currentLayouts.getOrNull(index)?.let(::sweepGeometry); measured[index] = true }
                                     sweeps[index]
+                                }
+                            },
+                            rowGeometry = if (!bloomUpdated) null else { index ->
+                                if (index !in rowSweeps.indices) null else {
+                                    if (!rowDone[index]) { rowSweeps[index] = currentLayouts.getOrNull(index)?.let(::rowSweepGeometry); rowDone[index] = true }
+                                    rowSweeps[index]
                                 }
                             })
 
@@ -420,9 +432,13 @@ fun LyricsView(
                         // which interludes are open at that time, or the target moves again when
                         // the dots really open or close.
                         val scrollTime = currentTime + leadMs
-                        // Where an open interlude's dots sit below its start: the middle of the gap
-                        // before it plus its row, i.e. halfway between the lines around it.
-                        val interludeCentre = (rowHeightUpdated - lineGapUpdated) / 2f
+                        // An open interlude under Bloom is its row of dots with a line gap on each side, as
+                        // between any two lines: the room it takes after the gap before it, and where its dots
+                        // sit below its start. Spring's is one lyric row, its dots halfway between the lines.
+                        val bloomGaps = bloomUpdated
+                        fun interludeRoom(layout: LineLayout) = if (bloomGaps) layout.height + lineGapUpdated else rowHeightUpdated
+                        fun interludeCentreOf(layout: LineLayout) =
+                            if (bloomGaps) layout.height / 2f else (rowHeightUpdated - lineGapUpdated) / 2f
                         // The room a folded background line gives back: from the bottom of the row
                         // above it to the top of the next, less the usual gap when the next is a
                         // line of its own (background lines sit tight under their lead and under
@@ -444,8 +460,8 @@ fun LyricsView(
                                 val line = layout.line
                                 val open = if (scrollTime >= line.startMs &&
                                     scrollTime <= line.endMs - LyricsAnimator.PRE_HIDDEN_DOT_LINE_MS) 1f else 0f
-                                settledYScratch[i] = layout.yOffset + settledY + interludeCentre * open
-                                settledY += rowHeightUpdated * open
+                                settledYScratch[i] = layout.yOffset + settledY + interludeCentreOf(layout) * open
+                                settledY += interludeRoom(layout) * open
                             } else {
                                 settledYScratch[i] = layout.yOffset + settledY
                                 // Folded background vocals give up their room. Where they're headed,
@@ -458,8 +474,8 @@ fun LyricsView(
                                 // there, so it adds none after. The dots sit centred between the two
                                 // lines, as far from each as two lines are from each other.
                                 val scale = state?.scale?.coerceIn(0f, 1f) ?: 0f
-                                newDynamicYOffsets[i] = layout.yOffset + accumulatedY + interludeCentre * scale
-                                accumulatedY += rowHeightUpdated * scale
+                                newDynamicYOffsets[i] = layout.yOffset + accumulatedY + interludeCentreOf(layout) * scale
+                                accumulatedY += interludeRoom(layout) * scale
                             } else {
                                 val fold = if (layout.isBackground) 1f - (state?.presence ?: 1f) else 0f
                                 // Tucked up under their line as they fold.
@@ -494,7 +510,7 @@ fun LyricsView(
                             // An interlude's offset is already the centre of its dots, in a row
                             // one lyric line tall.
                             val half = when {
-                                alignTopUpdated -> if (currentLayouts[index].isInterlude) -interludeCentre else 0f
+                                alignTopUpdated -> if (currentLayouts[index].isInterlude) -interludeCentreOf(currentLayouts[index]) else 0f
                                 currentLayouts[index].isInterlude -> 0f
                                 // A line whose translation or romanization rows make it taller
                                 // than the room above the focus point (a small window) keeps its
