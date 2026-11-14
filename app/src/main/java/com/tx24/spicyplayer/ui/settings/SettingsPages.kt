@@ -761,7 +761,7 @@ internal fun BackgroundContent(settings: AppSettings, viewModel: ExternalPlaybac
                 label = "Move with the Music",
                 checked = settings.beatReactiveBackground && !settings.staticBackground && !settings.lowPerformance,
                 onCheckedChange = { settings.beatReactiveBackground = it },
-                description = "Speed the background up and down with the song's tempo, loudness and beats, where Spotify has them.",
+                description = "Let the background flow faster and swell in the loud parts of the song, where Spotify has them.",
                 icon = Icons.Rounded.GraphicEq,
                 enabled = !settings.staticBackground && !settings.lowPerformance,
             )

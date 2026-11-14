@@ -1233,7 +1233,7 @@ private fun LyricsApp(
                         blurDp = settings.backgroundBlurFor(backgroundType),
                         artistHeaderUrl = state.artistHeaderUrl,
                         artistHeaderPending = state.artistHeaderPending,
-                        speed = if (beatReactive) viewModel::backgroundSpeed else null,
+                        motion = if (beatReactive) viewModel.backgroundMotion else null,
                         refined = settings.refinedBackground,
                         followMotionUrl = followMotionUrl?.takeIf { it != failedFollowMotionUrl },
                         onFollowMotionFailed = {
