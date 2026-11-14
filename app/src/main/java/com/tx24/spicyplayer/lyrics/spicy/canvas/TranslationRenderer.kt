@@ -122,12 +122,9 @@ internal fun DrawScope.drawTranslationText(
                 val glowAlpha = (animation.lineGlow * 0.5f).coerceIn(0f, 1f) * animation.opacity
                 val shadow = if (!animation.suppressShadows && glowAlpha > 0.02f)
                     Shadow(Color.White.copy(alpha = glowAlpha), blurRadius = (4f + 8f * animation.lineGlow) * size / 56f) else null
-                val width = result.size.width.toFloat()
                 val height = result.size.height.toFloat()
-                // One row sweeps across; a wrapped one fills downward, as a line-synced line does.
-                if (result.lineCount == 1 || supplement.isRtl) drawWipeText(result, offset.x, offset.y, width, width, 0f,
-                    animation.lineGradientPercent, alpha * ROW_OPACITY, dim, shadow = shadow, rtl = supplement.isRtl)
-                else drawVerticalWipeText(result, offset.x, offset.y, height, height, 0f,
+                // The row takes the line's downward fill, wrapped or not, right-to-left or not.
+                drawVerticalWipeText(result, offset.x, offset.y, height, height, 0f,
                     animation.lineGradientPercent, alpha * ROW_OPACITY, dim, shadow)
             } else draw(supplement.text, offset, ROW_OPACITY, wholeAlpha)
         }
