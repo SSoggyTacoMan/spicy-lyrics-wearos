@@ -21,6 +21,13 @@ enum class RomanizationHighlight(val label: String) {
     Word("Word by word"),
 }
 
+/**
+ * The "no pace known" default, one shared instance: a lambda written in a default argument is a new
+ * object on every call, which made every `ScrollConfig()` unequal to the last and, through the
+ * layout cache key, re-measured the lyrics on every recomposition.
+ */
+private val NO_STATIC_PACE: () -> com.tx24.spicyplayer.network.data.spotify.StaticPace? = { null }
+
 /** How the lyrics follow the song and answer a tap. None of it changes how lines are measured. */
 data class ScrollConfig(
     /** Early Scroll: the view picks its line as if the song were this far ahead. 0 is off. */
@@ -39,7 +46,7 @@ data class ScrollConfig(
      * The song's pace for static lyrics, once known: the lyrics hold through quiet intros, outros
      * and breaks. Null (or until it arrives) they move evenly over [staticSongMs].
      */
-    val staticPace: () -> com.tx24.spicyplayer.network.data.spotify.StaticPace? = { null },
+    val staticPace: () -> com.tx24.spicyplayer.network.data.spotify.StaticPace? = NO_STATIC_PACE,
     /**
      * Bloom's early scroll (the floating window): its timed scroll sets off early enough to reach
      * a line as it's sung, in place of Early Scroll's lead.
