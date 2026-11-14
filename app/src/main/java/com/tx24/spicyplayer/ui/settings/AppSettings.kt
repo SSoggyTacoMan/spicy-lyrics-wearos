@@ -45,7 +45,7 @@ class AppSettings(private val prefs: SharedPreferences) {
 
     /** Romanized lyrics where the song has them; the floating button, not a settings row. */
     var romanize by boolean("romanize", false)
-    var romanizationMode by enum("romanizationMode", com.tx24.spicyplayer.lyrics.spicy.romanization.RomanizationMode.Replace)
+    var romanizationMode by enum("romanizationMode", com.tx24.spicyplayer.lyrics.spicy.romanization.RomanizationMode.UnderLine)
     var translationMode by enum("translationMode", com.tx24.spicyplayer.translation.TranslationMode.UnderLine)
     var romanizationHighlight by enum("romanizationHighlight", com.tx24.spicyplayer.lyrics.spicy.RomanizationHighlight.Sweep)
     var animatedUnderRows by boolean("animatedUnderRows", false)
