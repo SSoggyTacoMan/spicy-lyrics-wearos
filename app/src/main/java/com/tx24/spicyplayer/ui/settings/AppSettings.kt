@@ -151,6 +151,12 @@ class AppSettings(private val prefs: SharedPreferences) {
     var expandWithoutLyrics by boolean("expandWithoutLyrics", false)
     /** Landscape: the timeline sits under the cover, above the song, rather than with the controls on it. */
     var timelineOutsideCover by boolean("timelineOutsideCover", true)
+    /**
+     * Landscape, beside the lyrics: the cover moves out to the screen's edge and the player sits
+     * under it, always showing (song, timeline, transport), with the view buttons in a column
+     * beside the cover. Off keeps the centred cover with controls that appear over it.
+     */
+    var playerBelowCover by boolean("playerBelowCover", false)
     /** The record's looping Apple Music cover in place of the still one, where it has one. */
     var animatedCover by boolean("animatedCover", true)
     /**

@@ -18,6 +18,8 @@ import kotlin.math.min
  * @param pageHeightPx height of the page.
  * @param topPx where the page starts from the top of the screen.
  * @param timelineOutside the timeline sits under the cover, between it and the song text.
+ * @param playerBelow the player sits under the cover (song, timeline, transport) and the cover
+ * moves out toward the page's edge; see [belowRows].
  */
 data class LandscapeMetrics(
     val pageWidthPx: Float,
@@ -25,6 +27,7 @@ data class LandscapeMetrics(
     val density: Float,
     val topPx: Float = 0f,
     val timelineOutside: Boolean = false,
+    val playerBelow: Boolean = false,
 ) {
     /** `--NowBarWidth: calc(min(30cqw, 52cqh) * 1.1)`; the cover is as wide as the panel. */
     val coverSizePx = min(pageWidthPx * 0.30f, pageHeightPx * 0.52f) * 1.1f
@@ -39,10 +42,58 @@ data class LandscapeMetrics(
     private val edgeSpacingPx = (pageWidthPx * 0.5f - coverSizePx - innerSpacingPx) * 0.7f
 
     /**
+     * With the player under the cover, the cover goes out to the page's edge by
+     * `min(max(24px, 4.2cqw), 50cqw - NowBarWidth - NowBarRightSpacing)`. The lyrics and the cover
+     * stage keep to [edgeSpacingPx].
+     */
+    val coverEdgePx = if (playerBelow) {
+        min(maxOf(PLAYER_EDGE_MIN_DP * density, pageWidthPx * 0.042f), pageWidthPx * 0.5f - coverSizePx - innerSpacingPx)
+    } else {
+        edgeSpacingPx
+    }
+
+    /**
+     * The rows under the cover when [playerBelow] is on, else null. Fixed offsets from the cover's
+     * bottom edge, sized against the cover (`cqw` of it) with floors that keep touch targets
+     * and legible text on a phone.
+     */
+    val belowRows: PlayerBelowRows? = if (!playerBelow) null else {
+        val coverDp = coverSizePx / density
+        val titleSp = maxOf(13f, coverDp * 0.039f)
+        val artistsSp = maxOf(12f, coverDp * 0.037f)
+        val metaGap = coverSizePx * 0.08f
+        val metaHeight = (titleSp + artistsSp) * 1.3f * density
+        val timelineGap = coverSizePx * 0.03f
+        val timelineHeight = PLAYER_TIMELINE_DP * density
+        val controlsGap = coverSizePx * 0.025f
+        val controlsHeight = maxOf(coverSizePx * 0.09f, PLAYER_CONTROLS_MIN_DP * density)
+        PlayerBelowRows(
+            titleSizeSp = titleSp,
+            artistsSizeSp = artistsSp,
+            metaGapPx = metaGap,
+            metaHeightPx = metaHeight,
+            timelineGapPx = timelineGap,
+            timelineHeightPx = timelineHeight,
+            controlsGapPx = controlsGap,
+            controlsHeightPx = controlsHeight,
+            heightPx = metaGap + metaHeight + timelineGap + timelineHeight + controlsGap + controlsHeight,
+        )
+    }
+
+
+    /**
      * `.NowBar { padding-top: calc(50cqh - var(--NowBarWidth) * .625) }`, or `.6` with no timeline
      * under the cover.
      */
     val coverTopPx = topPx + pageHeightPx * 0.5f - coverSizePx * if (timelineOutside) 0.625f else 0.6f
+
+    /**
+     * The panel's cover top: the cover with its rows is centred on the page (`padding-top:
+     * 50cqh - NowBarWidth * .695`), never above the page's top.
+     */
+    val panelTopPx = belowRows?.let {
+        maxOf(topPx, topPx + pageHeightPx * 0.5f - (coverSizePx + it.heightPx) / 2f)
+    } ?: coverTopPx
 
     /**
      * The lyrics' size: 56px against the 741px cover, as on the desktop page, but never under the
@@ -58,29 +109,29 @@ data class LandscapeMetrics(
 
     /** The cover's left edge at [side] (0 = panel on the left .. 1 = on the right). */
     fun coverLeftPx(side: Float): Float {
-        val left = edgeSpacingPx
-        val right = pageWidthPx - coverSizePx - edgeSpacingPx
+        val left = coverEdgePx
+        val right = pageWidthPx - coverSizePx - coverEdgePx
         return left + (right - left) * side
     }
 
     /** The panel on the left, cover and text; see [coverLeftPx] for where it sits. */
-    val panel = header(edgeSpacingPx)
+    val panel = header(coverEdgePx, panelTopPx)
 
     /** Without the lyrics (`.LyricsHidden`), the same panel moves to the page's centre. */
-    val centred = header((pageWidthPx - coverSizePx) / 2f)
+    val centred = header((pageWidthPx - coverSizePx) / 2f, coverTopPx)
 
     /**
      * The song text under the cover, as measured on the desktop page: `--default-font-size` is
      * 3% of the cover, the name 2.25x that on a 1.12 line, the artists 1.275x on a 1.317 line;
      * all of it lifted with the lyrics where their floor holds them up ([textBoost]).
      */
-    private fun header(left: Float): ExpandedHeader {
+    private fun header(left: Float, top: Float): ExpandedHeader {
         val base = baseFontSizeSp
         val titleSize = base * 2.25f
         val artistsSize = base * 1.275f
         return ExpandedHeader(
             artLeftPx = left,
-            artTopPx = coverTopPx,
+            artTopPx = top,
             artSizePx = coverSizePx,
             textHeightPx = (titleSize * 1.12f + artistsSize * 1.317f) * density,
             titleSizeSp = titleSize,
@@ -128,8 +179,30 @@ data class LandscapeMetrics(
         const val DESKTOP_LYRICS_PX = 56f
         const val DESKTOP_COVER_PX = 741f
         const val MIN_LYRICS_SP = 29.6f
+        const val PLAYER_EDGE_MIN_DP = 24f
+
+        /** The bar's 32dp touch band and the times under it. */
+        const val PLAYER_TIMELINE_DP = 50f
+        const val PLAYER_CONTROLS_MIN_DP = 48f
     }
 }
+
+/**
+ * The player's rows under the landscape cover, from its bottom edge down: the song text after
+ * [metaGapPx], the timeline after [timelineGapPx], the transport after [controlsGapPx]. All heights
+ * are in px; [heightPx] is the whole stack under the cover.
+ */
+data class PlayerBelowRows(
+    val titleSizeSp: Float,
+    val artistsSizeSp: Float,
+    val metaGapPx: Float,
+    val metaHeightPx: Float,
+    val timelineGapPx: Float,
+    val timelineHeightPx: Float,
+    val controlsGapPx: Float,
+    val controlsHeightPx: Float,
+    val heightPx: Float,
+)
 
 /** The lyrics' box across the page, in px from the page's left edge. */
 data class LyricsBox(val leftPx: Float, val widthPx: Float)

@@ -116,6 +116,7 @@ fun configSnapshot(settings: AppSettings): Map<String, Any> = with(settings) {
         "canvas_backdrop" to canvasBackdrop,
         "pause_with_music" to LoopKind.store(pauseWithMusic),
         "timeline_outside_cover" to timelineOutsideCover,
+        "player_below_cover" to playerBelowCover,
         "expand_without_lyrics" to expandWithoutLyrics,
         "animated_background" to animatedBackground,
         "refined_background" to refinedBackground,
