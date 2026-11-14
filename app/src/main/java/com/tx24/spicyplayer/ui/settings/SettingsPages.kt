@@ -340,14 +340,12 @@ internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackView
         icon = Icons.Rounded.VisibilityOff,
         searchDescription = "Minimal Lyrics Mode. Hides sung lyrics lines.",
     )
-    // Bloom sets its own word motion.
     ToggleRow(
         label = "Original word motion",
         checked = settings.originalWordMotion,
         onCheckedChange = { settings.originalWordMotion = it },
         description = "The desktop amount of grow and lift on sung words. Off: ${AppSettings.WORD_MOTION_BOOST}×, which reads better on a phone.",
         icon = Icons.Rounded.Height,
-        enabled = settings.rendererStyle == RendererStyle.Spring,
     )
     SettingsSection("Text") {
         SettingRow(
