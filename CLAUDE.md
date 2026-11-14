@@ -22,7 +22,6 @@ Windows / PowerShell (use `./gradlew` from Git Bash):
 - Unit tests are plain JVM JUnit4. Provider, parser, blend and clock tests live in `:core` (`:core:test`) and need no Android SDK; the rest are in `:app` (`testDebugUnitTest`), where `unitTests.isReturnDefaultValues = true` turns Android logging and clock calls into no-ops. XML parsing in tests uses kxml2.
 - The live-network tests skip themselves unless you opt in: `RUN_SPICY_LYRICS_PROVIDER_TEST=1` (also needs `SPICY_LYRICS_CLIENT_KEY` in the environment) and `RUN_AMLL_NETWORK_TEST=1`. `RUN_MOTION_COVER_TEST=1` checks that the Apple Music animated-cover lookup still works. `RUN_SPOTIFY_CANVAS_TEST=1` checks that the Spotify Canvas lookup service still answers. `RUN_ALL_SOURCES_TEST=1` asks every source for a few well-known songs and prints a table (run with `--info`); use it to check which APIs still work.
 - `SPICY_LYRICS_CLIENT_KEY` is read from a git-ignored root `.env` into `BuildConfig`. It must be a publishable `sl_pk_` key, never a secret `sl_sk_` key. Users can override it in Settings → Sources.
-- `server/canvas/` is a Cloudflare Worker at `canvas.tx24.dev` that 0.14.4 asks for Spotify Canvas; it now forwards to Spicy Lyrics' Canvas service, which later versions ask directly. Keep it up until 0.14.4 is gone (`npm test` there, no Android needed).
 
 ## More docs
 
@@ -31,6 +30,28 @@ Read these only when the task calls for them:
 - `docs/architecture.md`: before working inside a layer (session tracking, backend, sources, normalisation, rendering, UI).
 - `docs/settings.md`: before adding or changing a setting.
 - `docs/releases.md`: when asked to make a release. Tagged builds produce signed APK GitHub prereleases, and they double as the changelog.
+
+## Release announcements
+
+Every release ends with a Discord announcement, given unasked in a fenced code block once the release is published:
+
+```
+# 📱 Spicy Lyrics Mobile v0.16.0
+## New
+- **Bold lead.** Plain-language explanation, no trailing period
+## Fixed
+- **Bold lead.** Explanation, issue links as [#44](<https://github.com/spicylyrics/mobile/issues/44>)
+
+**Full Changelog**: <https://github.com/spicylyrics/mobile/compare/v0.15.1...v0.16.0>
+-# ||@Mobile Announcements||
+```
+
+- Title `# 📱 Spicy Lyrics Mobile vX.Y.Z`: the phone emoji, never 📝.
+- Sections `## New` / `## Changed` / `## Fixed`, empty ones left out, and nothing held back from the release.
+- No blank lines before or after `#`/`##` lines; the only blank line is the one before **Full Changelog**.
+- Every link in `<...>`, so Discord doesn't embed it.
+- Shorter than the GitHub notes: one line per change, the same order.
+- Last line is the ping `-# ||@Mobile Announcements||`.
 
 ## Architecture
 
