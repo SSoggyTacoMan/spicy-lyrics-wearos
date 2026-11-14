@@ -144,13 +144,13 @@ private fun QueueRow(entry: QueueEntry, modifier: Modifier, onClick: () -> Unit)
 
 /** The entry's cover: the bitmap the player sent, else its URI, else a note. */
 @Composable
-private fun QueueCover(entry: QueueEntry) {
+internal fun QueueCover(entry: QueueEntry, size: androidx.compose.ui.unit.Dp = 40.dp) {
     val shape = RoundedCornerShape(6.dp)
-    Box(Modifier.size(40.dp).clip(shape).background(SpicyColors.TintBgPressed), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(size).clip(shape).background(SpicyColors.TintBgPressed), contentAlignment = Alignment.Center) {
         val bitmap = remember(entry.icon) { entry.icon?.asImageBitmap() }
         when {
-            bitmap != null -> Image(bitmap, null, Modifier.size(40.dp), contentScale = ContentScale.Crop)
-            entry.iconUri != null -> AsyncImage(entry.iconUri, null, Modifier.size(40.dp), contentScale = ContentScale.Crop)
+            bitmap != null -> Image(bitmap, null, Modifier.size(size), contentScale = ContentScale.Crop)
+            entry.iconUri != null -> AsyncImage(entry.iconUri, null, Modifier.size(size), contentScale = ContentScale.Crop)
             else -> Icon(Icons.Rounded.MusicNote, null, tint = SpicyColors.TextTertiary, modifier = Modifier.size(18.dp))
         }
     }

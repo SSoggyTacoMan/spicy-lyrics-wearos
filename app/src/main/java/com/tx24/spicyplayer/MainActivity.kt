@@ -41,6 +41,9 @@ import com.tx24.spicyplayer.haptics.playMusicHaptics
 import com.tx24.spicyplayer.ui.components.SpicyButton
 import com.tx24.spicyplayer.ui.components.SpicyButtonStyle
 import com.tx24.spicyplayer.ui.components.SpicyModal
+import com.tx24.spicyplayer.ui.nowplaying.NextUpCard
+import com.tx24.spicyplayer.playback.NextUp
+import com.tx24.spicyplayer.playback.QueueEntry
 import com.tx24.spicyplayer.ui.components.SpicyToastHost
 import com.tx24.spicyplayer.ui.lyricsmanager.LyricsManagerModal
 import com.tx24.spicyplayer.ui.components.SpicyModalActions
@@ -1094,6 +1097,29 @@ private fun LyricsApp(
                 // while the bottom controls show (they'd move under a finger otherwise). The lyrics
                 // fade out above them.
                 var pinnedHeightPx by remember { mutableIntStateOf(0) }
+                // Up Next: the song queued after this one, for the last stretch of this one. It
+                // sits where the pinned credits do, and the lyrics fade out above it.
+                var nextUpHeightPx by remember { mutableIntStateOf(0) }
+                val queuedNext = remember(state.queue) { NextUp.nextEntry(state.queue) }
+                var heldNext by remember { mutableStateOf<QueueEntry?>(null) }
+                LaunchedEffect(queuedNext) { if (queuedNext != null) heldNext = queuedNext }
+                var nextUpDue by remember { mutableStateOf(false) }
+                LaunchedEffect(settings.nextUpCard, queuedNext != null, state.durationMs, state.isPlaying, state.title) {
+                    if (!settings.nextUpCard || queuedNext == null) {
+                        nextUpDue = false
+                        return@LaunchedEffect
+                    }
+                    while (true) {
+                        nextUpDue = NextUp.due(viewModel.currentPositionMs(), state.durationMs)
+                        delay(NEXT_UP_TICK_MS)
+                    }
+                }
+                val nextUpActive by animateFloatAsState(
+                    if (nextUpDue && queuedNext != null && !overlayOpen && !ambient && !inPip && expansion == 0f) 1f else 0f,
+                    tween(280),
+                    label = "nextUp",
+                )
+                val nextUpClearPx = with(LocalDensity.current) { 24.dp.toPx() }
                 val pinnedGapPx = with(LocalDensity.current) { PINNED_FOOTER_GAP.toPx() }
                 val pinnedClearPx = with(LocalDensity.current) { 8.dp.toPx() }
                 // While the controls show, the scroll-to-active button keeps clear of them.
@@ -1351,7 +1377,11 @@ private fun LyricsApp(
                             // Pinned credits fade out under the controls, so while those show the
                             // credits go back to the end of the lyrics.
                             pinnedFooter = if (controlsVisible && bottomBar) PinnedFooterMode.Off else pinnedFooter,
-                            maskBottomPx = { if (pinnedHeightPx > 0) pinnedGapPx + pinnedHeightPx + pinnedClearPx else 0f },
+                            maskBottomPx = {
+                                val credits = if (pinnedHeightPx > 0) pinnedGapPx + pinnedHeightPx + pinnedClearPx else 0f
+                                val card = if (nextUpHeightPx > 0) pinnedGapPx + credits + nextUpHeightPx + nextUpClearPx else 0f
+                                maxOf(credits, card * nextUpActive)
+                            },
                             config = renderConfig,
                             fontSizeScale = lyricsFontScale,
                             noticeActions = noticeActions,
@@ -1576,6 +1606,18 @@ private fun LyricsApp(
                         modifier = Modifier.align(Alignment.BottomCenter),
                     )
                 }
+                NextUpCard(
+                    entry = queuedNext ?: heldNext,
+                    shown = { nextUpActive * (1f - if (bottomBar) controlsShown else 0f) },
+                    onHeight = { nextUpHeightPx = it },
+                    modifier = Modifier
+                        .align(if (landscape) Alignment.BottomStart else Alignment.BottomCenter)
+                        .padding(belowTop)
+                        .inLyricsBox()
+                        .graphicsLayer {
+                            translationY = -(pinnedGapPx + if (pinnedHeightPx > 0) pinnedHeightPx + pinnedClearPx else 0f)
+                        },
+                )
                 // Over the controls' shade rather than under it, so neither blurs nor covers them.
                 PinnedLyricsFooter(
                     state = lyricsViewState,
@@ -1903,6 +1945,7 @@ private val PIP_LINE_TOP = 14.dp
 
 /** Pinned credits' distance above the controls or the screen's edge (20px + 1.25rem). */
 private val PINNED_FOOTER_GAP = 20.dp
+private const val NEXT_UP_TICK_MS = 500L
 /** The cover stage's side swap: out, then in, drifting this share of the screen's width. */
 private const val STAGE_SWAP_OUT_MS = 160
 private const val STAGE_SWAP_IN_MS = 420

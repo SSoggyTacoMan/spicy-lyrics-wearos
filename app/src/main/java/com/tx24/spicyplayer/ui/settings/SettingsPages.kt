@@ -54,6 +54,7 @@ import com.tx24.spicyplayer.ui.components.ChromeTheme
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Notes
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.UnfoldMore
 import androidx.compose.material.icons.automirrored.rounded.CallMerge
 
@@ -810,6 +811,13 @@ internal fun NowPlayingContent(settings: AppSettings, viewModel: ExternalPlaybac
             onChange = { settings.releaseYearPosition = ReleaseYearPosition.valueOf(it) },
         )
     }
+    ToggleRow(
+        label = "Up Next",
+        checked = settings.nextUpCard,
+        onCheckedChange = { settings.nextUpCard = it },
+        description = "In the last 30 seconds of a song, show the one queued next at the bottom of the lyrics.",
+        icon = Icons.Rounded.SkipNext,
+    )
     ToggleRow(
         label = "Animated Cover",
         checked = settings.animatedCover && !settings.lowPerformance,
