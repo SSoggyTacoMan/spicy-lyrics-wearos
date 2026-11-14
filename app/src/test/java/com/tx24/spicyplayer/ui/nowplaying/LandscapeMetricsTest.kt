@@ -62,7 +62,7 @@ class LandscapeMetricsTest {
         assertEquals(914f * 0.042f, below.coverEdgePx, 0.01f)
         assertTrue(below.coverEdgePx < phone.coverEdgePx)
         assertEquals(below.coverEdgePx, below.coverLeftPx(0f), 0.01f)
-        assertEquals(914f - below.coverSizePx - below.coverEdgePx, below.coverLeftPx(1f), 0.01f)
+        assertEquals(914f - below.panelCoverPx - below.coverEdgePx, below.coverLeftPx(1f), 0.01f)
         assertEquals(phone.lyricsBox(true, false), below.lyricsBox(true, false))
         assertEquals(phone.lyricsBox(true, true), below.lyricsBox(true, true))
         assertEquals(phone.stageSolidPx, below.stageSolidPx, 0.01f)
@@ -89,11 +89,31 @@ class LandscapeMetricsTest {
             rows.heightPx, 0.01f,
         )
         val top = below.panelTopPx
-        val bottom = top + below.coverSizePx + rows.heightPx
+        val bottom = top + below.panelCoverPx + rows.heightPx
         assertEquals(411f / 2f, (top + bottom) / 2f, 0.5f)
         assertTrue("runs off the page: $bottom", bottom <= 411f)
         assertTrue(top >= 0f)
         assertEquals(top, below.panel.artTopPx, 0.01f)
+        assertEquals(below.panelCoverPx, below.panel.artSizePx, 0.01f)
+    }
+
+    @Test
+    fun `player below shrinks the panel's cover until the stack leaves room around it`() {
+        // 914x411 at 1x: the full cover (235) and its rows (about 400) would fill the page.
+        val rows = requireNotNull(below.belowRows)
+        assertTrue(below.panelCoverPx < below.coverSizePx)
+        assertTrue(below.panelCoverPx + rows.heightPx <= 411f * 0.86f + 0.5f)
+        // Everything but the panel keeps the full cover: the centred one, the stage, the lyrics.
+        assertEquals(phone.coverSizePx, below.coverSizePx, 0.01f)
+        assertEquals(phone.centred.artSizePx, below.centred.artSizePx, 0.01f)
+        // A page with room to spare keeps it whole.
+        val roomy = LandscapeMetrics(pageWidthPx = 1600f, pageHeightPx = 1200f, density = 1f, playerBelow = true)
+        assertEquals(roomy.coverSizePx, roomy.panelCoverPx, 0.01f)
+        // However short, the cover keeps a floor (unless the page's own cover is already smaller).
+        val short = LandscapeMetrics(pageWidthPx = 2400f, pageHeightPx = 600f, density = 3f, playerBelow = true)
+        assertEquals(96f * 3f, short.panelCoverPx, 0.01f)
+        // Without the player under it, nothing shrinks.
+        assertEquals(phone.coverSizePx, phone.panelCoverPx, 0.01f)
     }
 
     @Test

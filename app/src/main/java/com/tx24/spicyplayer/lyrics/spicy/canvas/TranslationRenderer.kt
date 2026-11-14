@@ -27,8 +27,16 @@ internal fun DrawScope.drawTranslationText(
         else -> (if (animation.isBackground) config.backgroundAlphaBright else config.gradientAlphaBright) * animation.opacity
     }
     val blur = if (static || plan !is LyricPaintPlan.InactiveShadow) 0f else plan.blurRadius
-    fun draw(result: TextLayoutResult, offset: Offset, dimmer: Float) {
-        val opacity = (alpha * dimmer).coerceIn(0f, 1f)
+    // Animated rows under Bloom: a row with no words of its own lights up whole, on its own tone,
+    // like a line-synced line, instead of sweeping.
+    val bloomRows = config.isBloom && config.animatedUnderRows && !static
+    val wholeAlpha = if (!bloomRows) alpha else {
+        val dim = if (animation.isBackground) config.backgroundAlphaDim else config.gradientAlphaDim
+        val bright = if (animation.isBackground) config.backgroundAlphaBright else config.gradientAlphaBright
+        (dim + (bright - dim) * animation.rowLit) * animation.opacity
+    }
+    fun draw(result: TextLayoutResult, offset: Offset, dimmer: Float, base: Float = alpha) {
+        val opacity = (base * dimmer).coerceIn(0f, 1f)
         val size = with(result.layoutInput.density) { result.layoutInput.style.fontSize.toPx() }
         // Blur is a separate pass, scaled by the actual lyric font size rather than density.
         if (blur > 0f && config.distanceBlurEnabled) {
@@ -101,7 +109,7 @@ internal fun DrawScope.drawTranslationText(
                     } else drawWipeText(word.textLayoutResult, x, top, width, word.fullWordWidth, word.startXOffset, position, bright, dim,
                         shadow = null, rtl = supplement.isRtl, fixedEdgePx = edge)
                 }
-            } else if (!static && animation.isActive && config.animatedUnderRows) {
+            } else if (!static && animation.isActive && config.animatedUnderRows && !config.isBloom) {
                 // A row with no word timing sweeps over its line's time, with the line's glow.
                 val result = supplement.text
                 val size = textSizePx(result)
@@ -116,7 +124,7 @@ internal fun DrawScope.drawTranslationText(
                     animation.lineGradientPercent, alpha * ROW_OPACITY, dim, shadow = shadow, rtl = supplement.isRtl)
                 else drawVerticalWipeText(result, offset.x, offset.y, height, height, 0f,
                     animation.lineGradientPercent, alpha * ROW_OPACITY, dim, shadow)
-            } else draw(supplement.text, offset, ROW_OPACITY)
+            } else draw(supplement.text, offset, ROW_OPACITY, wholeAlpha)
         }
     }
 }

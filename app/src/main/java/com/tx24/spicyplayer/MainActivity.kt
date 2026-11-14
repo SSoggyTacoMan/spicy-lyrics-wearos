@@ -787,8 +787,7 @@ private fun LyricsApp(
         backgroundPop = settings.backgroundPop,
         keepOverlappingLines = settings.keepOverlappingLines,
         romanizationHighlight = settings.romanizationHighlight,
-        // Bloom poses its words its own way.
-        animatedUnderRows = settings.animatedUnderRows && !bloom,
+        animatedUnderRows = settings.animatedUnderRows,
         syllableMerge = settings.syllableMerge,
         syllablePace = settings.syllablePace,
         distanceBlurEnabled = settings.distanceBlur && !lowPerformance,
@@ -1538,10 +1537,8 @@ private fun LyricsApp(
                     },
                     besideCover = if (!playerBelow || stageOn || !playerRowsLive || controlsGone) null else {
                         {
-                            val rows = requireNotNull(landscapeMetrics.belowRows)
-                            val length = with(LocalDensity.current) {
-                                minOf(landscapeMetrics.coverSizePx + rows.heightPx, pageHeight - landscapeMetrics.panelTopPx).toDp()
-                            }
+                            // As tall as the cover and level with its top, so it never reaches the player rows.
+                            val length = with(LocalDensity.current) { landscapeMetrics.panelCoverPx.toDp() }
                             CoverSideControls(
                                 controls = playbackControls,
                                 romanizeAvailable = romanizeButton,

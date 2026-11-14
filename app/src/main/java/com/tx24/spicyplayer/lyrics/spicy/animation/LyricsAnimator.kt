@@ -447,7 +447,7 @@ class LyricsAnimator(
                 }
             }
 
-            if (config.animatedUnderRows && lyricsType == LyricsType.Syllable && !line.isInterlude && !line.isSongwriter) {
+            if (config.animatedUnderRows && !config.isBloom && lyricsType == LyricsType.Syllable && !line.isInterlude && !line.isSongwriter) {
                 // The translation row under a word-synced line sweeps over the line's whole time.
                 when (lineState) {
                     ElementState.Active -> {
@@ -477,6 +477,8 @@ class LyricsAnimator(
                         romanizationNote(noteLine)?.pieces?.map { LetterSynthesizer.rowWord(it.word, it.text, config) } ?: emptyList()
                     }
                     if (rowWords.isNotEmpty()) rowWordStates = when {
+                        // Under Bloom the row only fills while its line is sung; after that it dims with the line.
+                        config.isBloom -> if (lineState == ElementState.Active) bloomRowStates(rowWords, processedPosition) else emptyList()
                         lineState == ElementState.Active -> rowWords.mapIndexed { i, word ->
                             animateWord(word, processedPosition, deltaTime, lineIdx + ROW_KEY, i)
                         }.also { cachedRowStates[lineIdx] = it }
@@ -507,6 +509,7 @@ class LyricsAnimator(
                 groupScale = if (config.isBloom && line.isInterlude)
                     BloomMotion.dotGroup(processedPosition - line.startMs, line.duration, PRE_HIDDEN_DOT_LINE_MS).scale else 1f,
                 lit = lit,
+                rowLit = if (config.isBloom && config.animatedUnderRows && !line.isInterlude && !line.isSongwriter) bloomRowTone(lineIdx, isActive) else 0f,
                 isActive = isActive,
                 wordStates = wordStates,
                 rowWordStates = rowWordStates,
@@ -762,6 +765,8 @@ class LyricsAnimator(
 
     /** Bloom: each line's tone animation (0 at rest, 1 lit), and its size. */
     private val toneAnims = mutableMapOf<Int, Animatable<Float, AnimationVector1D>>()
+    /** Bloom's animated rows: the tone of a line's whole-line rows (translation, plain romanization). */
+    private val rowToneAnims = mutableMapOf<Int, Animatable<Float, AnimationVector1D>>()
     /** Each line's word runs ([LetterSynthesizer.runStarts]), for the words list they were worked out from. */
     private val runStartsCache = mutableMapOf<Int, Pair<List<Word>, IntArray>>()
     /** A sung line's words once they've come to rest, and from when: reused from then on. */
@@ -771,6 +776,7 @@ class LyricsAnimator(
 
     private fun clearBloom() {
         toneAnims.clear()
+        rowToneAnims.clear()
         runStartsCache.clear()
         bloomFinal.clear()
         bloomRest.clear()
@@ -795,6 +801,39 @@ class LyricsAnimator(
             }
         }
         return anim.value
+    }
+
+    /**
+     * How lit a line's whole-line rows are under Bloom, whatever the line's own kind: they come up
+     * in 0.3 s as the line starts, and go back down a moment after it ends, as a word-synced
+     * line's words do.
+     */
+    private fun bloomRowTone(lineIdx: Int, isActive: Boolean): Float {
+        val target = if (isActive) 1f else 0f
+        val anim = rowToneAnims.getOrPut(lineIdx) { Animatable(target) }
+        if (anim.targetValue != target) {
+            val spec = if (isActive) tween<Float>(BloomMotion.LINE_LIGHT_MS, easing = BloomMotion.LINE_TONE_EASE)
+                else tween(BloomMotion.DIM_MS, delayMillis = BloomMotion.DIM_DELAY_MS, easing = BloomMotion.DIM_EASE)
+            coroutineScope.launch { anim.animateTo(target, spec) }
+        }
+        return anim.value
+    }
+
+    /**
+     * The words of an animated row under Bloom at [t]: each fills in Bloom's tones over its own time
+     * (a held one letter by letter), with no lift, swell or glow of its own.
+     */
+    private fun bloomRowStates(words: List<Word>, t: Double): List<WordAnimState> = words.map { word ->
+        WordAnimState(
+            scale = 1f, yOffset = 0f, glow = 0f,
+            gradientPosition = -50f + 150f * progress(t, word.startMs, word.endMs),
+            state = elementState(t, word.startMs, word.endMs),
+            isLetterGroup = word.isLetterGroup,
+            letterStates = if (!word.isLetterGroup) emptyList() else word.letters.map { letter ->
+                LetterAnimState(gradientPosition = -50f + 150f * progress(t, letter.startMs, letter.endMs),
+                    scale = 1f, yOffset = 0f, glow = 0f)
+            },
+        )
     }
 
     /** A line's size under Bloom: full while it's [focused], a little smaller at rest. */

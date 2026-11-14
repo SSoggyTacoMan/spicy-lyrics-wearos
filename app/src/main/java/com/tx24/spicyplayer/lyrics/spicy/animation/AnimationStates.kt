@@ -53,6 +53,8 @@ data class LineAnimState(
     val presenceGoal: Float = presence,
     /** Bloom: how lit the line's text is, 1 lit → 0 back at rest (a sung line dimming, a line-synced line fading). */
     val lit: Float = 0f,
+    /** Bloom with animated rows: how lit the line's whole-line rows are (see [lit], but its own timing). */
+    val rowLit: Float = 0f,
     /** Interlude dots: the whole group's breathing, about its middle, on top of [scale]. */
     val groupScale: Float = 1f,
     /**

@@ -406,11 +406,12 @@ private fun DrawScope.drawSyllabicLetterFragment(
     // Offsets are in lyric font sizes (--DefaultLyricsSize); a letter's is applied ×2.
     val lyricSize = lyricSizePx(wLayout.textLayoutResult, lineAnim.isBackground)
     val bloom = config.isBloom
-    val boost = if (bloom) 1f else config.wordMotionBoost
-    // Bloom's poses are in em of the text itself; Spring's in lyric sizes, a letter's doubled.
+    val boost = config.wordMotionBoost
+    // Bloom's poses are in em of the text itself; Spring's in lyric sizes, a letter's doubled. The
+    // sideways push comes from the swell, so it grows with it.
     val emPx = textSizePx(wLayout.textLayoutResult)
-    val lYShift = if (bloom) lState.yOffset * emPx else boostedLift(lState.yOffset, boost) * lyricSize * 2f
-    val lXShift = if (bloom) lState.xOffset * emPx else 0f
+    val lYShift = if (bloom) boostedLift(lState.yOffset, boost) * emPx else boostedLift(lState.yOffset, boost) * lyricSize * 2f
+    val lXShift = if (bloom) lState.xOffset * boost * emPx else 0f
     val containerYShift = boostedLift(wordAnim.yOffset, boost) * lyricSize
     val wordScale = boostedScale(wordAnim.scale, boost)
     val letterScale = boostedScale(lState.scale, boost)
@@ -498,7 +499,7 @@ private fun DrawScope.drawStandardWord(
     }
 
     val wordScale = boostedScale(wordAnim.scale, config.wordMotionBoost)
-    val wordYShift = boostedLift(wordAnim.yOffset, if (config.isBloom) 1f else config.wordMotionBoost) * lyricSizePx(wLayout.textLayoutResult, lineAnim.isBackground)
+    val wordYShift = boostedLift(wordAnim.yOffset, config.wordMotionBoost) * lyricSizePx(wLayout.textLayoutResult, lineAnim.isBackground)
     val pivotX = xPos + textWidth * anchor
     val pivotY = yPos + textHeight / 2f
 

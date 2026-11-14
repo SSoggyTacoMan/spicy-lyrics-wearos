@@ -53,21 +53,20 @@ data class LandscapeMetrics(
     }
 
     /**
-     * The rows under the cover when [playerBelow] is on, else null. Fixed offsets from the cover's
-     * bottom edge, sized against the cover (`cqw` of it) with floors that keep touch targets
-     * and legible text on a phone.
+     * The rows under a cover [coverPx] wide. Fixed offsets from its bottom edge, sized against the
+     * cover (`cqw` of it) with floors that keep touch targets and legible text on a phone.
      */
-    val belowRows: PlayerBelowRows? = if (!playerBelow) null else {
-        val coverDp = coverSizePx / density
+    private fun rowsFor(coverPx: Float): PlayerBelowRows {
+        val coverDp = coverPx / density
         val titleSp = maxOf(13f, coverDp * 0.039f)
         val artistsSp = maxOf(12f, coverDp * 0.037f)
-        val metaGap = coverSizePx * 0.08f
+        val metaGap = coverPx * 0.08f
         val metaHeight = (titleSp + artistsSp) * 1.3f * density
-        val timelineGap = coverSizePx * 0.03f
+        val timelineGap = coverPx * 0.03f
         val timelineHeight = PLAYER_TIMELINE_DP * density
-        val controlsGap = coverSizePx * 0.025f
-        val controlsHeight = maxOf(coverSizePx * 0.09f, PLAYER_CONTROLS_MIN_DP * density)
-        PlayerBelowRows(
+        val controlsGap = coverPx * 0.025f
+        val controlsHeight = maxOf(coverPx * 0.09f, PLAYER_CONTROLS_MIN_DP * density)
+        return PlayerBelowRows(
             titleSizeSp = titleSp,
             artistsSizeSp = artistsSp,
             metaGapPx = metaGap,
@@ -80,6 +79,28 @@ data class LandscapeMetrics(
         )
     }
 
+    /**
+     * The cover in the panel. With the player under it, the cover and every row have to fit the
+     * page with room around them: the rows' floors (touch targets, legible text) don't shrink with
+     * a short page, so the cover gives way instead, down to [PLAYER_MIN_COVER_DP]. Everything
+     * else (the lyrics, the stage, the centred cover) keeps [coverSizePx].
+     */
+    val panelCoverPx: Float = if (!playerBelow) coverSizePx else {
+        val limit = pageHeightPx * PLAYER_STACK_FRACTION
+        fun fits(cover: Float) = cover + rowsFor(cover).heightPx <= limit
+        if (fits(coverSizePx)) coverSizePx else {
+            var low = 0f
+            var high = coverSizePx
+            repeat(24) {
+                val mid = (low + high) / 2f
+                if (fits(mid)) low = mid else high = mid
+            }
+            minOf(coverSizePx, maxOf(low, PLAYER_MIN_COVER_DP * density))
+        }
+    }
+
+    /** The rows under the panel's cover when [playerBelow] is on, else null. */
+    val belowRows: PlayerBelowRows? = if (playerBelow) rowsFor(panelCoverPx) else null
 
     /**
      * `.NowBar { padding-top: calc(50cqh - var(--NowBarWidth) * .625) }`, or `.6` with no timeline
@@ -92,7 +113,7 @@ data class LandscapeMetrics(
      * 50cqh - NowBarWidth * .695`), never above the page's top.
      */
     val panelTopPx = belowRows?.let {
-        maxOf(topPx, topPx + pageHeightPx * 0.5f - (coverSizePx + it.heightPx) / 2f)
+        maxOf(topPx, topPx + pageHeightPx * 0.5f - (panelCoverPx + it.heightPx) / 2f)
     } ?: coverTopPx
 
     /**
@@ -110,12 +131,12 @@ data class LandscapeMetrics(
     /** The cover's left edge at [side] (0 = panel on the left .. 1 = on the right). */
     fun coverLeftPx(side: Float): Float {
         val left = coverEdgePx
-        val right = pageWidthPx - coverSizePx - coverEdgePx
+        val right = pageWidthPx - panelCoverPx - coverEdgePx
         return left + (right - left) * side
     }
 
     /** The panel on the left, cover and text; see [coverLeftPx] for where it sits. */
-    val panel = header(coverEdgePx, panelTopPx)
+    val panel = header(coverEdgePx, panelTopPx, panelCoverPx)
 
     /** Without the lyrics (`.LyricsHidden`), the same panel moves to the page's centre. */
     val centred = header((pageWidthPx - coverSizePx) / 2f, coverTopPx)
@@ -125,14 +146,14 @@ data class LandscapeMetrics(
      * 3% of the cover, the name 2.25x that on a 1.12 line, the artists 1.275x on a 1.317 line;
      * all of it lifted with the lyrics where their floor holds them up ([textBoost]).
      */
-    private fun header(left: Float, top: Float): ExpandedHeader {
+    private fun header(left: Float, top: Float, coverPx: Float = coverSizePx): ExpandedHeader {
         val base = baseFontSizeSp
         val titleSize = base * 2.25f
         val artistsSize = base * 1.275f
         return ExpandedHeader(
             artLeftPx = left,
             artTopPx = top,
-            artSizePx = coverSizePx,
+            artSizePx = coverPx,
             textHeightPx = (titleSize * 1.12f + artistsSize * 1.317f) * density,
             titleSizeSp = titleSize,
             titleLineHeightSp = titleSize * 1.12f,
@@ -180,6 +201,12 @@ data class LandscapeMetrics(
         const val DESKTOP_COVER_PX = 741f
         const val MIN_LYRICS_SP = 29.6f
         const val PLAYER_EDGE_MIN_DP = 24f
+
+        /** The cover and the player under it take at most this much of the page's height. */
+        const val PLAYER_STACK_FRACTION = 0.86f
+
+        /** The panel's cover is never smaller than this, however short the page. */
+        const val PLAYER_MIN_COVER_DP = 96f
 
         /** The bar's 32dp touch band and the times under it. */
         const val PLAYER_TIMELINE_DP = 50f
