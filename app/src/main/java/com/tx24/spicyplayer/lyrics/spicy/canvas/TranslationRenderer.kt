@@ -9,8 +9,8 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
 import com.tx24.spicyplayer.lyrics.spicy.RenderConfig
 import com.tx24.spicyplayer.lyrics.spicy.RomanizationHighlight
+import com.tx24.spicyplayer.lyrics.spicy.animation.BloomMotion
 import com.tx24.spicyplayer.lyrics.spicy.animation.LineAnimState
-import com.tx24.spicyplayer.lyrics.spicy.animation.AppleMusicMotion
 
 /** The rows under a line sit at this opacity, glow included. */
 private const val ROW_OPACITY = 0.65f
@@ -24,8 +24,7 @@ internal fun DrawScope.drawTranslationText(
     val alpha = when {
         static -> animation.opacity
         plan is LyricPaintPlan.InactiveShadow -> plan.alpha
-        config.isAppleMusic -> (if (animation.isBackground) AppleMusicMotion.BACKGROUND_BRIGHT_ALPHA else AppleMusicMotion.BRIGHT_ALPHA) * animation.opacity
-        else -> (if (animation.isBackground) 0.6f else config.gradientAlphaBright) * animation.opacity
+        else -> (if (animation.isBackground) config.backgroundAlphaBright else config.gradientAlphaBright) * animation.opacity
     }
     val blur = if (static || plan !is LyricPaintPlan.InactiveShadow) 0f else plan.blurRadius
     fun draw(result: TextLayoutResult, offset: Offset, dimmer: Float) {
@@ -53,15 +52,11 @@ internal fun DrawScope.drawTranslationText(
                     val state = rowState ?: animation.wordStates.getOrNull(word.sourceWordIndex) ?: return@words
                     val width = word.textLayoutResult.size.width.toFloat()
                     val size = with(word.textLayoutResult.layoutInput.density) { word.textLayoutResult.layoutInput.style.fontSize.toPx() }
-                    val (position, band) = if (config.isAppleMusic)
-                        appleWipe(state.gradientPosition, word.fullWordWidth, size, word.word.text)
-                    else state.gradientPosition to if (config.isSimple) 30f else 0f
-                    val dim = when {
-                        config.isAppleMusic && animation.isBackground -> AppleMusicMotion.BACKGROUND_DIM_ALPHA
-                        config.isAppleMusic -> AppleMusicMotion.DIM_ALPHA
-                        animation.isBackground -> 0.3f
-                        else -> config.gradientAlphaDim
-                    } * animation.opacity * ROW_OPACITY
+                    val position = state.gradientPosition
+                    // Bloom's fill runs from -50 to 100 behind a soft edge of its own width.
+                    val edge = if (config.isBloom) BloomMotion.FADE_EM * size else 0f
+                    val dim = (if (animation.isBackground) config.backgroundAlphaDim else config.gradientAlphaDim) *
+                        animation.opacity * ROW_OPACITY
                     val x = offset.x + word.relativeOffset.x
                     val top = offset.y + word.relativeOffset.y
                     val bright = alpha * ROW_OPACITY
@@ -87,11 +82,11 @@ internal fun DrawScope.drawTranslationText(
                             }
                         }) {
                             if (letter != null) drawWipeText(word.textLayoutResult, x, top, width, width, 0f, letter.gradientPosition,
-                                bright, dim, shadow = shadow, rtl = supplement.isRtl, gradientOffsetPercent = band)
+                                bright, dim, shadow = shadow, rtl = supplement.isRtl, fixedEdgePx = edge)
                             else drawWipeText(word.textLayoutResult, x, top, width, word.fullWordWidth, word.startXOffset, position,
-                                bright, dim, shadow = shadow, rtl = supplement.isRtl, gradientOffsetPercent = band)
+                                bright, dim, shadow = shadow, rtl = supplement.isRtl, fixedEdgePx = edge)
                         }
-                    } else if (config.romanizationHighlight == RomanizationHighlight.Word && !config.isAppleMusic && highlight.size > at + 1) {
+                    } else if (config.romanizationHighlight == RomanizationHighlight.Word && highlight.size > at + 1) {
                         // A highlight, not a sweep: the word being sung is lit whole, with a glow, then
                         // settles to the line's lit colour; the words ahead stay dim.
                         val level = highlight[at]
@@ -104,7 +99,7 @@ internal fun DrawScope.drawTranslationText(
                         drawWipeText(word.textLayoutResult, x, top, width, word.fullWordWidth, word.startXOffset, 100f,
                             lit, lit, shadow = shadow, rtl = supplement.isRtl)
                     } else drawWipeText(word.textLayoutResult, x, top, width, word.fullWordWidth, word.startXOffset, position, bright, dim,
-                        shadow = null, rtl = supplement.isRtl, gradientOffsetPercent = band)
+                        shadow = null, rtl = supplement.isRtl, fixedEdgePx = edge)
                 }
             } else if (!static && animation.isActive && config.animatedUnderRows) {
                 // A row with no word timing sweeps over its line's time, with the line's glow.

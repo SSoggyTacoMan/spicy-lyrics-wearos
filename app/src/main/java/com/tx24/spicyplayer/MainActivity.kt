@@ -217,7 +217,7 @@ import com.tx24.spicyplayer.ui.nowplaying.TrackDirection
 import androidx.compose.animation.core.spring
 import com.tx24.spicyplayer.ui.settings.AppSettings
 import com.tx24.spicyplayer.ui.settings.SystemBarsMode
-import com.tx24.spicyplayer.ui.settings.LyricsStyle
+import com.tx24.spicyplayer.ui.settings.RendererStyle
 import com.tx24.spicyplayer.lyrics.spicy.canvas.LyricsLayoutCalculator
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
@@ -766,22 +766,19 @@ private fun LyricsApp(
     // Elsewhere, where a touch leaves the controls alone: the cover's gestures, credit links.
     val revealGuard = remember { ControlsRevealGuard() }
     // Built fresh, not copied: the mode-dependent defaults are worked out in the constructor.
-    val appleMusicStyle = settings.lyricsStyle == LyricsStyle.AppleMusic
+    val bloom = settings.rendererStyle == RendererStyle.Bloom
     val renderConfig = RenderConfig(
-        // Simple and Minimal are Spicy Lyrics' modes; the Apple Music style has its own look.
-        simpleLyricsMode = settings.simpleLyricsMode && !appleMusicStyle,
-        minimalLyricsMode = settings.minimalLyricsMode && !appleMusicStyle,
-        appleMusic = appleMusicStyle,
-        refreshedSimple = settings.refreshedSimpleLyrics && settings.simpleLyricsMode && !appleMusicStyle,
+        bloom = bloom,
+        minimalLyricsMode = settings.minimalLyricsMode,
         wordMotionBoost = settings.wordMotionBoost,
         wideDuetPadding = settings.duetLinePadding,
         creditsFollowLastLine = settings.creditsFollowLastLine,
         refinedCredits = settings.refinedCredits,
-        backgroundPop = settings.backgroundPop && !appleMusicStyle,
+        backgroundPop = settings.backgroundPop,
         keepOverlappingLines = settings.keepOverlappingLines,
         romanizationHighlight = settings.romanizationHighlight,
-        // The Apple Music style and Refreshed Simple pose their words their own way.
-        animatedUnderRows = settings.animatedUnderRows && !appleMusicStyle && !(settings.refreshedSimpleLyrics && settings.simpleLyricsMode),
+        // Bloom poses its words its own way.
+        animatedUnderRows = settings.animatedUnderRows && !bloom,
         syllableMerge = settings.syllableMerge,
         syllablePace = settings.syllablePace,
         distanceBlurEnabled = settings.distanceBlur && !lowPerformance,
@@ -792,6 +789,7 @@ private fun LyricsApp(
             seekFadeCompensation = settings.seekFadeCompensation,
             staticSongMs = if (settings.staticAutoScroll != StaticAutoScroll.Off) state.durationMs else 0L,
             staticPace = viewModel::staticPace,
+            bloomEarly = inPip,
         ),
     )
     var showSettings by remember { mutableStateOf(false) }
@@ -2250,10 +2248,10 @@ private fun LyricsPanelContent(
                     )
                 }
             }
-            val rendererLines = remember(originalLines, config.isMinimal, config.isSimple) {
+            val rendererLines = remember(originalLines, config.isMinimal, config.isBloom) {
                 buildDisplayTimeline(originalLines, minimalMode = config.isMinimal, holdThroughShortGaps = when (lyrics.lyricsType) {
-                    LyricsType.Syllable -> config.isMinimal
-                    LyricsType.Line -> config.isSimple
+                    LyricsType.Syllable -> config.isMinimal || config.isBloom
+                    LyricsType.Line -> config.isBloom
                     else -> false
                 })
             }
