@@ -148,6 +148,7 @@ fun configSnapshot(settings: AppSettings): Map<String, Any> = with(settings) {
         "quick_settings_button" to quickSettingsButton,
         "lyrics_manager_button" to lyricsManagerButton,
         "queue_button" to queueButton,
+        "grouped_controls" to groupedControls,
         "source_button" to sourceButton,
         "player_buttons" to playerButtons,
         "romanize_button" to romanizeButton,

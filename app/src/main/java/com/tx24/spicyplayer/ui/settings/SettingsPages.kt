@@ -979,6 +979,13 @@ internal fun ControlsContent(settings: AppSettings) {
     )
     SettingsSection("Floating Buttons") {
         ToggleRow(
+            label = "Grouped view controls",
+            checked = settings.groupedControls,
+            onCheckedChange = { settings.groupedControls = it },
+            description = "The buttons share one frosted capsule. Toggles fill in white while on, and the arrow back to the current line matches. Off gives each its own circle.",
+            icon = Icons.Rounded.Widgets,
+        )
+        ToggleRow(
             label = "Player buttons",
             checked = settings.playerButtons,
             onCheckedChange = { settings.playerButtons = it },

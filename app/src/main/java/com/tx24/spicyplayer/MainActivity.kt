@@ -132,7 +132,11 @@ import com.tx24.spicyplayer.lyrics.spicy.canvas.ActiveLineDirection
 import com.tx24.spicyplayer.lyrics.spicy.canvas.PinnedFooterMode
 import com.tx24.spicyplayer.ui.profile.ProfileModal
 import com.tx24.spicyplayer.lyrics.spicy.canvas.PinnedLyricsFooter
+import com.tx24.spicyplayer.ui.components.CAPSULE_PAD
+import com.tx24.spicyplayer.ui.components.CapsuleButton
 import com.tx24.spicyplayer.ui.components.GlassButton
+import com.tx24.spicyplayer.ui.components.GlassCapsule
+import com.tx24.spicyplayer.ui.components.LocalGroupedControls
 import com.tx24.spicyplayer.ui.settings.LyricsFont
 import com.tx24.spicyplayer.ui.settings.LyricsFontFile
 import androidx.compose.ui.text.font.FontFamily
@@ -366,6 +370,7 @@ class LyricsActivity : ComponentActivity() {
                 ProvideTouchHaptics(settings.touchHaptics) {
                     CompositionLocalProvider(
                         LocalUiAnimations provides (settings.uiAnimations && !settings.lowPerformance),
+                        LocalGroupedControls provides settings.groupedControls,
                         LocalPopupPalette provides settings.popupTheme.palette,
                         LocalAppIcon provides settings.appIcon,
                     ) {
@@ -1933,14 +1938,47 @@ private fun ScrollToActiveButton(
     val above = shownDirection == ActiveLineDirection.Above
     val rotation by animateFloatAsState(if (above) 180f else 0f, tween(200), label = "scrollToActiveArrow")
     if (alpha == 0f && !visible) return
+    val grouped = LocalGroupedControls.current
+    val label = if (above) "Scroll up to active lyric" else "Scroll down to active lyric"
     BoxWithConstraints(modifier.fillMaxSize()) {
         val density = LocalDensity.current
         // clamp(2rem, 8cqh, 6rem) from the lyrics' top or bottom edge.
         val edge = (maxHeight * 0.08f).coerceIn(32.dp, 96.dp)
         val top = with(density) { topPx.toDp() } + edge
+        val arrow = @Composable {
+            Icon(
+                Icons.Rounded.KeyboardArrowDown,
+                null,
+                Modifier.size(28.dp).graphicsLayer { rotationZ = rotation },
+                tint = SpicyColors.TextPrimary,
+            )
+        }
+        if (grouped) {
+            // A one-button capsule in the bottom corner, above the controls, whichever way the line
+            // is: the arrow turns to point there.
+            GlassCapsule(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 24.dp - 48.dp * CAPSULE_PAD)
+                    .graphicsLayer {
+                        translationY = -(bottomPx() + edge.toPx())
+                        this.alpha = alpha
+                        scaleX = scale
+                        scaleY = scale
+                    },
+            ) {
+                CapsuleButton(
+                    onClick = { if (visible) onClick() },
+                    contentDescription = label,
+                    size = 48.dp,
+                    modifier = Modifier.padding(48.dp * CAPSULE_PAD),
+                ) { arrow() }
+            }
+            return@BoxWithConstraints
+        }
         GlassButton(
             onClick = { if (visible) onClick() },
-            contentDescription = if (above) "Scroll up to active lyric" else "Scroll down to active lyric",
+            contentDescription = label,
             size = 48.dp,
             modifier = Modifier
                 .align(if (above) Alignment.BottomEnd else Alignment.TopEnd)
@@ -1951,14 +1989,7 @@ private fun ScrollToActiveButton(
                     scaleX = scale
                     scaleY = scale
                 },
-        ) {
-            Icon(
-                Icons.Rounded.KeyboardArrowDown,
-                null,
-                Modifier.size(28.dp).graphicsLayer { rotationZ = rotation },
-                tint = SpicyColors.TextPrimary,
-            )
-        }
+        ) { arrow() }
     }
 }
 
