@@ -85,6 +85,7 @@ class AppSettings(private val prefs: SharedPreferences) {
     /** A song ending on a duet line sung from the right has its credits there too. */
     var creditsFollowLastLine by boolean("creditsFollowLastLine", false)
     var refinedCredits by boolean("refinedCredits", true)
+    var nextUpCard by boolean("nextUpCard", true)
     /** "Translation from" and "Romanization from" in the credits. */
     var textCredits by boolean("textCredits", true)
     var backgroundPop by boolean("backgroundPop", false)
