@@ -125,7 +125,10 @@ private val CoverEnterEasing = CubicBezierEasing(0.835f, -0.008f, 0.149f, 0.866f
  * text centred under it, at [panelLeft] (it slides when the sides swap). Expanding then only
  * moves it to the centre. [coverOverlay] is drawn over the cover and moves with it; touches it
  * leaves alone reach the cover's gestures. [belowCover] (the timeline) sits between the panel's
- * cover and its text, pushing the text down by its height. While the cover stage shows ([stage], 0..1), the
+ * cover and its text, pushing the text down by its height. With [belowRows] set, the panel's
+ * cover and the song text under it give way to [playerRows] (the whole player, always showing) and
+ * [besideCover] (the view buttons in a column next to the cover); both fade out as the header
+ * expands, and the timeline and text of the centred cover fade in. While the cover stage shows ([stage], 0..1), the
  * panel's cover and text dissolve into it, as the big cover and its text do into the portrait
  * Canvas ([immersive]).
  */
@@ -147,6 +150,13 @@ fun CompactNowPlayingHeader(
     panelLeft: () -> Float = { panel?.artLeftPx ?: 0f },
     coverOverlay: (@Composable () -> Unit)? = null,
     belowCover: (@Composable () -> Unit)? = null,
+    /** The rows' sizes when the player sits under the landscape cover; null leaves the panel as it is. */
+    belowRows: PlayerBelowRows? = null,
+    /** The player, given how to draw the song text (its width in px, its modifier). */
+    playerRows: (@Composable (metadata: @Composable (Float, Modifier) -> Unit) -> Unit)? = null,
+    /** Placed next to the cover on its inner side; given which side the cover is on (0 left, 1 right). */
+    besideCover: (@Composable () -> Unit)? = null,
+    panelSide: () -> Float = { 0f },
     stage: () -> Float = { 0f },
     /** Portrait, while the song's Canvas fills the screen (0..1): the big cover and its text give way to it. */
     immersive: () -> Float = { 0f },
@@ -171,13 +181,15 @@ fun CompactNowPlayingHeader(
     val restingCorner = if (panel != null) CompactHeaderMetrics.NOWBAR_CORNER_FRACTION else CompactHeaderMetrics.ART_CORNER_FRACTION
     fun stageP() = if (panel != null) stage() else 0f
     val below = belowCover.takeIf { panel != null }
+    val playerBelow = panel != null && belowRows != null
     var belowHeightPx by remember { mutableFloatStateOf(0f) }
     fun boxAlpha() = if (hidden) p() else 1f
     // The compact bar's text gives way as the cover grows.
     fun compactTextAlpha() = 1f - (p() / TEXT_SWAP).coerceIn(0f, 1f)
     // The panel's text is always there; the compact bar's gives way to it.
     fun expandedTextAlpha() = (1f - immersive()) *
-        if (panel != null) 1f - stageP() else ((layoutP() - (1f - TEXT_SWAP)) / TEXT_SWAP).coerceIn(0f, 1f)
+        if (panel != null) (1f - stageP()) * (if (playerBelow) p() else 1f)
+        else ((layoutP() - (1f - TEXT_SWAP)) / TEXT_SWAP).coerceIn(0f, 1f)
     with(density) {
         Box(modifier.fillMaxSize().graphicsLayer { alpha = boxAlpha() }) {
             HeaderArtwork(
@@ -232,8 +244,54 @@ fun CompactNowPlayingHeader(
                         }
                         .onSizeChanged { belowHeightPx = it.height.toFloat() }
                         .offset { IntOffset(artLeft().roundToInt(), (artTop() + artSize()).roundToInt()) }
-                        .graphicsLayer { alpha = 1f - stageP() },
+                        .graphicsLayer { alpha = (1f - stageP()) * (if (playerBelow) p() else 1f) },
                 ) { below() }
+            }
+            if (playerBelow && playerRows != null && belowRows != null) {
+                Box(
+                    Modifier
+                        .layout { measurable, _ ->
+                            val width = artSize().roundToInt().coerceAtLeast(1)
+                            val placeable = measurable.measure(Constraints(minWidth = width, maxWidth = width))
+                            layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                        }
+                        .offset { IntOffset(artLeft().roundToInt(), (artTop() + artSize()).roundToInt()) }
+                        .graphicsLayer { alpha = (1f - stageP()) * (1f - p()) },
+                ) {
+                    playerRows { widthPx, modifier ->
+                        HeaderMetadata(
+                            title = info.title,
+                            artists = info.artists,
+                            year = year,
+                            titleStyle = headerTextStyle(FontWeight.SemiBold, belowRows.titleSizeSp, belowRows.titleSizeSp * 1.3f),
+                            artistsStyle = headerTextStyle(FontWeight.Normal, belowRows.artistsSizeSp, belowRows.artistsSizeSp * 1.3f),
+                            titleWidthPx = widthPx,
+                            artistsWidthPx = widthPx,
+                            centered = false,
+                            alignment = Alignment.Start,
+                            modifier = modifier,
+                            active = { visible() && boxAlpha() > 0f && p() < 1f },
+                        )
+                    }
+                }
+            }
+            if (playerBelow && besideCover != null) {
+                Box(
+                    Modifier
+                        .layout { measurable, _ ->
+                            val placeable = measurable.measure(Constraints())
+                            layout(placeable.width, placeable.height) {
+                                // Hangs off the cover's inner edge, level with its top: right of a
+                                // cover on the left, left of one on the right.
+                                val gap = restingSize * 0.024f
+                                val side = panelSide().coerceIn(0f, 1f)
+                                val onLeft = artLeft() + artSize() + gap
+                                val onRight = artLeft() - gap - placeable.width
+                                placeable.place((onLeft + (onRight - onLeft) * side).roundToInt(), artTop().roundToInt())
+                            }
+                        }
+                        .graphicsLayer { alpha = (1f - stageP()) * (1f - p()) },
+                ) { besideCover() }
             }
             if (expanded != null) {
                 HeaderMetadata(

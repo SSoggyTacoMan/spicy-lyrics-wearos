@@ -170,6 +170,8 @@ import com.tx24.spicyplayer.ui.components.SpicyVersionRow
 import com.tx24.spicyplayer.ui.controls.KeyInput
 import com.tx24.spicyplayer.ui.controls.ActionKind
 import com.tx24.spicyplayer.ui.controls.CoverControls
+import com.tx24.spicyplayer.ui.controls.CoverSideControls
+import com.tx24.spicyplayer.ui.controls.PlayerBelowControls
 import com.tx24.spicyplayer.ui.controls.PanelTimeline
 import com.tx24.spicyplayer.ui.controls.StageControls
 import com.tx24.spicyplayer.ui.settings.QuickScreen
@@ -1049,13 +1051,17 @@ private fun LyricsApp(
                 // Landscape: the page between the cutout's insets, which is where the header and
                 // lyrics are placed (`belowTop`).
                 val timelineOutside = settings.timelineOutsideCover
-                val landscapeMetrics = remember(pageWidth, pageHeight, density, topInsetPx, startInsetPx, endInsetPx, timelineOutside) {
+                // The player under the cover: beside the lyrics only. The centred big cover and the
+                // cover stage keep their own layouts.
+                val playerBelow = landscape && !hideHeader && settings.playerBelowCover
+                val landscapeMetrics = remember(pageWidth, pageHeight, density, topInsetPx, startInsetPx, endInsetPx, timelineOutside, playerBelow) {
                     LandscapeMetrics(
                         pageWidthPx = pageWidth - startInsetPx - endInsetPx,
                         pageHeightPx = pageHeight - topInsetPx,
                         density = density,
                         topPx = topInsetPx,
                         timelineOutside = timelineOutside,
+                        playerBelow = playerBelow,
                     )
                 }
                 // The lyrics' box beside the panel (or across the page without one). Mid-swap they
@@ -1073,7 +1079,9 @@ private fun LyricsApp(
                     landscapeMetrics.lyricFontSizeSp /
                         LyricsLayoutMetrics(lyricsBoxLeft.widthPx, density, LyricsType.Syllable, 1f).baseFontSizeSp
                 } else 1f
-                coverTouchArea.contains = if (!controlsOnCover) null else if (stageOn && headerExpanded) { position ->
+                // With the player under the cover, the view buttons are beside it, so a touch anywhere
+                // brings them up.
+                coverTouchArea.contains = if (!controlsOnCover || (playerBelow && !stageOn && !headerExpanded)) null else if (stageOn && headerExpanded) { position ->
                     // The centred stage's solid part, around the big cover's place.
                     val left = startInsetPx + landscapeMetrics.centred.artLeftPx
                     position.x in left..(left + landscapeMetrics.coverSizePx)
@@ -1086,7 +1094,8 @@ private fun LyricsApp(
                     val t = if (hideHeader) 1f else expansion
                     val left = startInsetPx + landscapeMetrics.coverLeftPx(panelSide.value) +
                         (landscapeMetrics.centred.artLeftPx - landscapeMetrics.coverLeftPx(panelSide.value)) * t
-                    val top = landscapeMetrics.coverTopPx
+                    val top = landscapeMetrics.panel.artTopPx +
+                        (landscapeMetrics.centred.artTopPx - landscapeMetrics.panel.artTopPx) * t
                     position.x in left..(left + size) && position.y in top..(top + size)
                 }
                 var controlsHeightPx by remember { mutableIntStateOf(0) }
@@ -1434,6 +1443,8 @@ private fun LyricsApp(
                 }
                 // Hidden, the header only shows while the big cover is open or fading.
                 val headerShowing by remember { derivedStateOf { expansion > 0f } }
+                // The player rows stay up until the cover has fully expanded.
+                val playerRowsLive by remember { derivedStateOf { expansion < 1f } }
                 val expandedHeader = remember(headerMetrics, controlsHeightPx, landscape, landscapeMetrics) {
                     if (landscape) landscapeMetrics.centred else headerMetrics.expanded(pageHeight - controlsHeightPx)
                 }
@@ -1457,7 +1468,7 @@ private fun LyricsApp(
                     immersive = { if (landscape) 0f else immersive() },
                     animatedCoverHeld = ambientOpaque || (!landscape && immersiveOpaque),
                     visible = { ambientFade.value < 1f },
-                    coverOverlay = if (!controlsOnCover || controlsGone || stageOn) null else {
+                    coverOverlay = if (!controlsOnCover || controlsGone || stageOn || (playerBelow && !headerShowing)) null else {
                         {
                             // No glass blur here: the cover is part of what the glass blurs.
                             CompositionLocalProvider(LocalBackdrop provides null) {
@@ -1484,13 +1495,52 @@ private fun LyricsApp(
                                         settings.panelSide = if (settings.panelSide == PanelSide.Left) PanelSide.Right else PanelSide.Left
                                     }),
                                     coverOnRight = settings.panelSide == PanelSide.Right,
-                                    shown = { controlsShown },
+                                    // Under the player layout it only comes with the centred cover.
+                                    shown = { if (playerBelow) controlsShown * expansion else controlsShown },
                                     timeline = !timelineOutside,
                                 )
                             }
                         }
                     },
-                    belowCover = if (!timelineOutside || !controlsOnCover) null else {
+                    belowRows = landscapeMetrics.belowRows.takeIf { playerBelow && !stageOn },
+                    playerRows = if (!playerBelow || stageOn || !playerRowsLive) null else { metadata ->
+                        PlayerBelowControls(playbackControls, requireNotNull(landscapeMetrics.belowRows), metadata)
+                    },
+                    besideCover = if (!playerBelow || stageOn || !playerRowsLive || controlsGone) null else {
+                        {
+                            val rows = requireNotNull(landscapeMetrics.belowRows)
+                            val length = with(LocalDensity.current) {
+                                minOf(landscapeMetrics.coverSizePx + rows.heightPx, pageHeight - landscapeMetrics.panelTopPx).toDp()
+                            }
+                            CoverSideControls(
+                                controls = playbackControls,
+                                romanizeAvailable = romanizeButton,
+                                showResync = settings.resyncButton,
+                                showExpand = expandButton,
+                                romanized = romanize,
+                                onToggleRomanize = {
+                                    settings.romanize = !settings.romanize
+                                    UsageStats.count(UsageCounter.ROMANIZE)
+                                },
+                                onOpenSettings = { whenUnlocked { showSettings = true } },
+                                onOpenLyricsManager = onOpenLyricsManager,
+                                onOpenQueue = onOpenQueue,
+                                onOpenSource = onOpenSource,
+                                onOpenQuickSettings = onOpenQuickSettings,
+                                onEnterPip = onEnterPipButton,
+                                expanded = headerExpanded,
+                                onToggleExpanded = expandButtonTapped,
+                                onSwapSide = {
+                                    settings.panelSide = if (settings.panelSide == PanelSide.Left) PanelSide.Right else PanelSide.Left
+                                },
+                                coverOnRight = settings.panelSide == PanelSide.Right,
+                                length = length,
+                                modifier = Modifier.graphicsLayer { alpha = controlsShown },
+                            )
+                        }
+                    },
+                    panelSide = { panelSide.value },
+                    belowCover = if (!timelineOutside || !controlsOnCover || (playerBelow && !headerShowing)) null else {
                         {
                             PanelTimeline(
                                 controls = playbackControls,
