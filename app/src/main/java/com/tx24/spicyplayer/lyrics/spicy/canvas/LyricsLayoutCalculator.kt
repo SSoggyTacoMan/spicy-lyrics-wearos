@@ -47,16 +47,15 @@ internal object LyricsLayoutCalculator {
         lyricsType: LyricsType,
         fontSizeScale: Float,
         romanize: Boolean,
-        simpleMode: Boolean,
+        bloom: Boolean,
         wideDuet: Boolean,
         backgroundScale: Float,
         romanizationMode: RomanizationMode = RomanizationMode.Replace,
-        refreshedSimple: Boolean = false,
         /** Set when the rows under a line are animated: the render config their words' letters are split by. */
         animatedRows: RenderConfig? = null,
     ): List<LineLayout> {
         val base = calculateLineLayouts(originals, canvasWidth, textMeasurer, density, lyricsType, fontSizeScale,
-            romanize && romanizationMode == RomanizationMode.Replace, simpleMode, wideDuet, backgroundScale, refreshedSimple)
+            romanize && romanizationMode == RomanizationMode.Replace, bloom, wideDuet, backgroundScale)
         val metrics = LyricsLayoutMetrics(canvasWidth, density, lyricsType, fontSizeScale)
         val hasDuet = originals.any { it.oppositeAligned }
         var extraY = 0f
@@ -302,17 +301,16 @@ internal object LyricsLayoutCalculator {
         lyricsType: LyricsType,
         fontSizeScale: Float = 1.0f,
         romanize: Boolean = false,
-        simpleMode: Boolean = false,
+        bloom: Boolean = false,
         wideDuet: Boolean = true,
-        /** Background vocals' size against the lead's: 0.75, or the Apple Music style's own. */
+        /** Background vocals' size against the lead's. */
         backgroundScale: Float = 0.75f,
-        refreshedSimple: Boolean = false,
     ): List<LineLayout> {
 
         val layouts = mutableListOf<LineLayout>()
         var currentY = 0f
         val metrics = LyricsLayoutMetrics(canvasWidth, density, lyricsType, fontSizeScale)
-        val lineSpacing = metrics.lineGapPx(refreshedSimple)
+        val lineSpacing = metrics.lineGapPx(bloom)
         
         val hasDuet = lines.any { it.oppositeAligned }
         val baseFontSize = metrics.baseFontSizeSp.sp
@@ -333,8 +331,8 @@ internal object LyricsLayoutCalculator {
                 // You can adjust the multiplier here to make the dots bigger or smaller:
                 val dotFontSize = baseFontSize * 1.3f // FIXED: dots=1.3x font
                 // Reference .dotGroup gap: clamp(0.005rem, 1.7cqw, 0.18rem), 1rem = 16dp.
-                // `--dot-gap`: clamp(0.005rem, 1.7cqw, 0.18rem); Simple: clamp(0.0067rem, 1.76cqw, 0.32rem).
-                val dotGap = if (simpleMode) (canvasWidth * 0.0176f).coerceIn(0.0067f * 16f * density, 0.32f * 16f * density)
+                // `--dot-gap`: clamp(0.005rem, 1.7cqw, 0.18rem); Bloom: clamp(0.0067rem, 1.76cqw, 0.32rem).
+                val dotGap = if (bloom) (canvasWidth * 0.0176f).coerceIn(0.0067f * 16f * density, 0.32f * 16f * density)
                     else (canvasWidth * 0.017f).coerceIn(0.005f * 16f * density, 0.18f * 16f * density)
                 val dotLayouts = interludeDotTimes(line.startMs, line.endMs).mapIndexed { dotIdx, (dotStart, dotEnd) ->
                     val dotWord = Word("•", dotStart, dotEnd)

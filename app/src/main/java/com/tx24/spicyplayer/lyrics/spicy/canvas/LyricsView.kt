@@ -55,7 +55,7 @@ import com.tx24.spicyplayer.lyrics.spicy.ScrollConfig
 import com.tx24.spicyplayer.lyrics.spicy.animation.LineAnimState
 import com.tx24.spicyplayer.lyrics.spicy.animation.LineSweepGeometry
 import com.tx24.spicyplayer.lyrics.spicy.animation.LyricsAnimator
-import com.tx24.spicyplayer.lyrics.spicy.animation.AppleMusicMotion
+import com.tx24.spicyplayer.lyrics.spicy.animation.BloomMotion
 import com.tx24.spicyplayer.lyrics.spicy.models.Line
 import com.tx24.spicyplayer.lyrics.spicy.models.LyricsType
 import com.tx24.spicyplayer.lyrics.spicy.models.FooterLine
@@ -185,14 +185,12 @@ fun LyricsView(
     val density = LocalDensity.current
     val scrollManager = remember(shownId) { ScrollManager().also { it.reset() } }
     scrollManager.smoothScrolling = config.scroll.smooth
-    scrollManager.appleMusic = config.isAppleMusic
-    scrollManager.refreshedSimple = config.isRefreshedSimple
-    val refreshedUpdated by rememberUpdatedState(config.isRefreshedSimple)
-    val ripple = remember(shownId, config.isRefreshedSimple) { RippleScroll() }
-    val appleMusicUpdated by rememberUpdatedState(config.isAppleMusic)
-    // The Apple Music style's staggered scroll: lines past the active one follow the view late.
-    val scrollTrail = remember(shownId) { ScrollTrail() }
-    // The frame time the late lines are drawn at while one is still behind; 0 once all have caught up.
+    scrollManager.rowsScroll = config.isBloom
+    val bloomUpdated by rememberUpdatedState(config.isBloom)
+    // Bloom times its scroll, except while sung lines fade away, where the rows ripple on a spring.
+    val timedScrollUpdated by rememberUpdatedState(config.isBloom && !config.isMinimal)
+    val ripple = remember(shownId, config.isBloom) { RippleScroll() }
+    // The frame time while a row is still on its way; 0 once all have arrived.
     var trailNow by remember(shownId) { mutableLongStateOf(0L) }
     // Wakes a resting frame loop at once (a drag or tap), rather than at its next look.
     val wake = remember(shownId) { Channel<Unit>(Channel.CONFLATED) }
@@ -225,7 +223,7 @@ fun LyricsView(
             LyricsLayoutMetrics(canvasWidth, density.density, lyricsType, fontSizeScale)
         }
         val footerSlot = footerMetrics.contentSlot(false, false, false)
-        val lineGapUpdated by rememberUpdatedState(footerMetrics.lineGapPx(config.isRefreshedSimple))
+        val lineGapUpdated by rememberUpdatedState(footerMetrics.lineGapPx(config.isBloom))
         val rowHeightUpdated by rememberUpdatedState(footerMetrics.lineHeightPx(footerMetrics.baseFontSizeSp))
         // Credits are sized from the synced lyric size whatever the lyrics type, so static lyrics
         // (drawn smaller) get the same credits.
@@ -281,17 +279,15 @@ fun LyricsView(
                         LetterSynthesizer.apply(lines, letterConfig, useRomanized) else if (presentation?.mode == TranslationMode.Replace) lines else display
                     MeasuredLyrics(display, if (presentation != null || romanized && romanizationMode == RomanizationMode.UnderLine) LyricsLayoutCalculator.calculatePresentationLayouts(
                         originals, display, presentation,
-                        canvasWidth, textMeasurer, density.density, incomingType, fontSizeScale, romanized, letterConfig.isSimple,
+                        canvasWidth, textMeasurer, density.density, incomingType, fontSizeScale, romanized, letterConfig.isBloom,
                         letterConfig.wideDuetPadding,
-                        if (letterConfig.isAppleMusic) AppleMusicMotion.BACKGROUND_SIZE else 0.75f,
+                        0.75f,
                         romanizationMode,
-                        refreshedSimple = letterConfig.isRefreshedSimple,
                         animatedRows = letterConfig.takeIf { it.animatedUnderRows },
                     ) else LyricsLayoutCalculator.calculateLineLayouts(
-                        display, canvasWidth, textMeasurer, density.density, incomingType, fontSizeScale, romanized, letterConfig.isSimple,
+                        display, canvasWidth, textMeasurer, density.density, incomingType, fontSizeScale, romanized, letterConfig.isBloom,
                         letterConfig.wideDuetPadding,
-                        if (letterConfig.isAppleMusic) AppleMusicMotion.BACKGROUND_SIZE else 0.75f,
-                        refreshedSimple = letterConfig.isRefreshedSimple,
+                        0.75f,
                     ), romanizationLines = originals.takeIf {
                         presentation?.mode == TranslationMode.Replace && romanized && romanizationMode == RomanizationMode.UnderLine
                     })
@@ -364,11 +360,6 @@ fun LyricsView(
                     val relaid = currentLayouts !== lastLayouts
                     if (relaid) {
                         rippleHeights = FloatArray(currentLayouts.size) { currentLayouts[it].height }
-                        var place = -1
-                        scrollTrail.places = IntArray(currentLayouts.size) { i ->
-                            if (!currentLayouts[i].isBackground) place++
-                            place.coerceAtLeast(0)
-                        }
                     }
                     if (lastLayouts != null && relaid) scrollManager.onRelayout()
                     lastLayouts = currentLayouts
@@ -388,10 +379,17 @@ fun LyricsView(
                         val measured = sweepMeasured
                         // Decided first: background vocals open and fold on the line the scroll
                         // moves to, so the room they take and the scroll start in the same frame.
-                        val decision = scrollPolicy.decide(currentLines, currentTime, leadMs = scrollConfigUpdated.leadMs)
+                        // Bloom's timed scroll takes longer into a line after a pause. In the floating
+                        // window it also sets off early enough to arrive as the line is sung, and the
+                        // lines above it count as sung once it has moved on.
+                        val bloomScroll = if (timedScrollUpdated) BloomMotion.scroll(currentLines, currentTime.toDouble()) else null
+                        val bloomEarly = bloomScroll != null && scrollConfigUpdated.bloomEarly
+                        val leadMs = if (bloomEarly) bloomScroll!!.leadMs else scrollConfigUpdated.leadMs
+                        val decision = scrollPolicy.decide(currentLines, currentTime, leadMs = leadMs)
                         animStates = animator.animate(currentLines, currentTime, deltaTime, scrollManager.hideLineBlur, lyricsType, romanizationLinesUpdated,
                             scrollTarget = decision.targetIndex,
-                            lineGeometry = if (!refreshedUpdated) null else { index ->
+                            earlySungBefore = if (bloomEarly) decision.targetIndex ?: -1 else -1,
+                            lineGeometry = if (!bloomUpdated) null else { index ->
                                 if (index !in sweeps.indices) null else {
                                     if (!measured[index]) { sweeps[index] = currentLayouts.getOrNull(index)?.let(::sweepGeometry); measured[index] = true }
                                     sweeps[index]
@@ -421,7 +419,7 @@ fun LyricsView(
                         // Early Scroll picks its line ahead of the song, so it also has to judge
                         // which interludes are open at that time, or the target moves again when
                         // the dots really open or close.
-                        val scrollTime = currentTime + scrollConfigUpdated.leadMs
+                        val scrollTime = currentTime + leadMs
                         // Where an open interlude's dots sit below its start: the middle of the gap
                         // before it plus its row, i.e. halfway between the lines around it.
                         val interludeCentre = (rowHeightUpdated - lineGapUpdated) / 2f
@@ -466,7 +464,7 @@ fun LyricsView(
                                 val fold = if (layout.isBackground) 1f - (state?.presence ?: 1f) else 0f
                                 // Tucked up under their line as they fold.
                                 newDynamicYOffsets[i] = layout.yOffset + accumulatedY -
-                                    slotOf(i) * fold * AppleMusicMotion.BACKGROUND_FOLDED_SHIFT
+                                    slotOf(i) * fold * LyricsAnimator.BACKGROUND_FOLDED_SHIFT
                                 accumulatedY -= slotOf(i) * fold
                             }
                         }
@@ -587,18 +585,12 @@ fun LyricsView(
                             snap = decision.motion == ScrollMotion.SNAP,
                             targetVisiblePx = scrollVisiblePx,
                         )
-                        if (refreshedUpdated) {
+                        if (bloomUpdated) {
                             val moving = ripple.update(beforeScroll, scrollManager.animScrollY, scrollIndex,
                                 newDynamicYOffsets, rippleHeights, centerYUpdated, canvasHeightUpdated,
                                 deltaTime, decision.motion == ScrollMotion.SNAP || relaid,
-                                scrollManager.hideLineBlur)
+                                scrollManager.hideLineBlur, timedMs = bloomScroll?.ms ?: 0)
                             val now = if (moving) frameTimeNanos else 0L
-                            if (trailNow != now) trailNow = now
-                        } else if (appleMusicUpdated) {
-                            targetIndex?.let { scrollTrail.reference = it }
-                            scrollTrail.record(frameTimeNanos, scrollManager.animScrollY, dynamicYOffsets)
-                            val behind = !scrollManager.hideLineBlur && scrollTrail.catchingUp(frameTimeNanos)
-                            val now = if (behind) frameTimeNanos else 0L
                             if (trailNow != now) trailNow = now
                         } else if (trailNow != 0L) trailNow = 0L
                     }
@@ -657,7 +649,7 @@ fun LyricsView(
                 // Tapping a credit leaves the controls as they are.
                 .keepsControlsHidden(tapsOnly = true) { position ->
                     footerProfileAt(footerLayouts, footerRowTops(), position.y - (centerYUpdated + scrollManager.animScrollY) -
-                        (if (refreshedUpdated) ripple.offset(lineLayouts.size) else 0f),
+                        (if (bloomUpdated) ripple.offset(lineLayouts.size) else 0f),
                         position.x, footerSlot.startPx, footerSlot.startPx + footerSlot.widthPx, footerAlignEnd) != null
                 }
                 .pointerInput(isStatic, footerLayouts, shown, ripple) {
@@ -667,7 +659,7 @@ fun LyricsView(
 
                         // A credit with a profile asks the screen to open it.
                         footerProfileAt(footerLayouts, footerRowTops(), adjustedTapY -
-                            (if (refreshedUpdated) ripple.offset(lineLayouts.size) else 0f),
+                            (if (bloomUpdated) ripple.offset(lineLayouts.size) else 0f),
                             tapOffset.x, footerSlot.startPx, footerSlot.startPx + footerSlot.widthPx, footerAlignEnd)?.let { line ->
                             viewState?.requestProfile(line)
                             return@detectTapGestures
@@ -679,7 +671,7 @@ fun LyricsView(
                         for (i in lineLayouts.indices) {
                             val layout = lineLayouts[i]
                             val layoutDynamicY = dynamicYOffsets.getOrElse(i) { layout.yOffset } +
-                                (if (refreshedUpdated) ripple.offset(i) else 0f)
+                                (if (bloomUpdated) ripple.offset(i) else 0f)
                             if (adjustedTapY >= layoutDynamicY && adjustedTapY <= layoutDynamicY + layout.height) {
                                 if (layout.isInterlude || layout.isSongwriter) continue
                                 // Folded background vocals sit under the next line: that one takes the tap.
@@ -703,15 +695,8 @@ fun LyricsView(
                 }
         ) {
             val viewScrollOffset = centerY + scrollManager.animScrollY
-            // Where a line is drawn: with the view, or a little behind it while it catches up.
-            val trailTime = trailNow
-            fun scrollOffsetFor(index: Int) = if (config.isRefreshedSimple) viewScrollOffset + ripple.offset(index)
-                else if (trailTime == 0L) viewScrollOffset
-                else centerY + scrollTrail.at(trailTime - scrollTrail.delayNanos(index))
-            // A late line takes its shift from the same moment as its scroll: a fold above the active
-            // line and the scroll making up for it then reach it together, not the fold first.
-            fun dynamicYFor(index: Int, now: Float) = if (config.isRefreshedSimple || trailTime == 0L) now
-                else scrollTrail.shiftAt(trailTime - scrollTrail.delayNanos(index), index, now)
+            // Where a line is drawn: with the view, or under Bloom where its own row has got to.
+            fun scrollOffsetFor(index: Int) = if (config.isBloom) viewScrollOffset + ripple.offset(index) else viewScrollOffset
 
             fun DrawScope.drawLine(drawn: DrawnLine) {
                 val layout = lineLayouts[drawn.index]
@@ -721,17 +706,22 @@ fun LyricsView(
                 val lineStartX = getLineStartX(layout)
 
                 when {
-                    layout.isInterlude -> drawInterludeGroup(layout, lineAnim, lineStartX, scrollOffset, dynamicY)
+                    layout.isInterlude -> drawInterludeGroup(layout, lineAnim, lineStartX, scrollOffset, dynamicY, ownScale = config.isBloom)
                     layout.line.translationReplaces -> drawTranslationText(layout, lineAnim, lineStartX, scrollOffset, dynamicY, config, lyricsType == LyricsType.Static, replacement = true)
                     lyricsType == LyricsType.Static -> drawStaticLine(layout, lineAnim, lineStartX, scrollOffset, dynamicY)
                     lyricsType == LyricsType.Line || layout.line.lineTimed -> drawLineModeLine(layout, lineAnim, lineStartX, scrollOffset, dynamicY, config)
-                    // Minimal Lyrics Mode shrinks inactive lines (a CSS `scale`: paint only, no reflow)
-                    // about their start edge, like line-synced lines. Background vocals that pop out
-                    // fold up into their top edge, under their line.
+                    // Fade Away Previous Lines shrinks inactive lines (a CSS `scale`: paint only, no
+                    // reflow) about their start edge, like line-synced lines; Bloom's lines grow from
+                    // their bottom leading corner. Background vocals that pop out fold up into their
+                    // top edge, under their line.
                     lineAnim.scale != 1f -> withTransform({
                         scale(lineAnim.scale, lineAnim.scale, Offset(
                             if (layout.isRightAligned) lineStartX + layout.totalWidth else lineStartX,
-                            dynamicY + scrollOffset + if (layout.isBackground && config.backgroundPop) 0f else layout.height / 2f,
+                            dynamicY + scrollOffset + when {
+                                layout.isBackground && config.backgroundPop -> 0f
+                                config.isBloom && !config.isMinimal -> layout.lyricHeight ?: layout.height
+                                else -> layout.height / 2f
+                            },
                         ))
                     }) { drawStandardLine(layout, lineAnim, lineStartX, scrollOffset, dynamicY, config) }
                     else -> drawStandardLine(layout, lineAnim, lineStartX, scrollOffset, dynamicY, config)
@@ -746,7 +736,7 @@ fun LyricsView(
             lineLayouts.forEachIndexed { lineIdx, layout ->
                 val scrollOffset = scrollOffsetFor(lineIdx)
                 val lineAnim = animStates.getOrNull(lineIdx) ?: return@forEachIndexed
-                val dynamicY = dynamicYFor(lineIdx, dynamicYOffsets.getOrElse(lineIdx) { layout.yOffset })
+                val dynamicY = dynamicYOffsets.getOrElse(lineIdx) { layout.yOffset }
 
                 // Optimization: Don't draw invisible lines.
                 if (lineAnim.opacity <= 0.01f) return@forEachIndexed

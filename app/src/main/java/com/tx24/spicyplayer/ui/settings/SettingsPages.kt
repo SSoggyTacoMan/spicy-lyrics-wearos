@@ -88,7 +88,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoFixOff
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Style
@@ -319,50 +318,34 @@ internal fun MoreOptions(summary: String, content: @Composable () -> Unit) {
 @Composable
 internal fun LyricsContent(state: PlayerUiState, viewModel: ExternalPlaybackViewModel, settings: AppSettings) {
     SettingRow(
-        label = "Lyrics Style",
-        description = "How the lyrics look and move. Apple Music lifts words as they're sung, with a soft wipe, and has lines follow one after another.",
+        label = "Renderer Visual Style",
+        description = "How the lyrics look and move. Spring is the default; Bloom fills each line behind one soft edge.",
         icon = Icons.Rounded.Style,
+        searchDescription = "Lyrics Style. Simple Lyrics Mode, Refreshed Simple Lyrics, Apple Music style. Spring, Bloom.",
     ) {
         SpicySelect(
-            value = settings.lyricsStyle.name,
-            options = LyricsStyle.entries.map { it.name },
-            labels = LyricsStyle.entries.map { it.label },
-            onChange = { settings.lyricsStyle = LyricsStyle.valueOf(it) },
+            value = settings.rendererStyle.name,
+            options = RendererStyle.entries.map { it.name },
+            labels = RendererStyle.entries.map { it.label },
+            onChange = { settings.rendererStyle = RendererStyle.valueOf(it) },
         )
     }
-    // Simple, Minimal and the word motion are the Spicy Lyrics style's own.
-    val spicyStyle = settings.lyricsStyle == LyricsStyle.Spicy
     ToggleRow(
-        label = "Simple Lyrics Mode",
-        checked = settings.simpleLyricsMode,
-        onCheckedChange = { settings.simpleLyricsMode = it },
-        description = "Remove extra visual effects from lyrics.",
-        icon = Icons.Rounded.AutoFixOff,
-        enabled = spicyStyle,
-    )
-    ToggleRow(
-        label = "Refreshed Simple Lyrics",
-        checked = settings.refreshedSimpleLyrics,
-        onCheckedChange = { settings.refreshedSimpleLyrics = it },
-        description = "Softer fill, flowing letters and rippling scroll.",
-        icon = Icons.Rounded.AutoFixOff,
-        enabled = spicyStyle && settings.simpleLyricsMode,
-    )
-    ToggleRow(
-        label = "Minimal Lyrics Mode",
+        label = "Fade Away Previous Lines",
         checked = settings.minimalLyricsMode,
         onCheckedChange = { settings.minimalLyricsMode = it },
         description = "Hides sung lyrics lines.",
         icon = Icons.Rounded.VisibilityOff,
-        enabled = spicyStyle,
+        searchDescription = "Minimal Lyrics Mode. Hides sung lyrics lines.",
     )
+    // Bloom sets its own word motion.
     ToggleRow(
         label = "Original word motion",
         checked = settings.originalWordMotion,
         onCheckedChange = { settings.originalWordMotion = it },
         description = "The desktop amount of grow and lift on sung words. Off: ${AppSettings.WORD_MOTION_BOOST}×, which reads better on a phone.",
         icon = Icons.Rounded.Height,
-        enabled = spicyStyle,
+        enabled = settings.rendererStyle == RendererStyle.Spring,
     )
     SettingsSection("Text") {
         SettingRow(

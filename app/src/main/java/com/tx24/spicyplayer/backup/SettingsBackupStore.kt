@@ -36,6 +36,8 @@ class SettingsBackupStore(private val context: Context) {
                 prefs.all.keys.filter { it !in kept }.forEach(::remove)
                 restored.forEach { (key, value) -> put(key, value) }
             }.commit()
+            // An older backup carries settings under their old names.
+            if (name == "ui") AppSettings.migrateStored(prefs)
         }
     }
 

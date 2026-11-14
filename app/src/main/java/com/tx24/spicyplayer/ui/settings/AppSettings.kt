@@ -35,7 +35,10 @@ class AppSettings(private val prefs: SharedPreferences) {
     // older backup still restores them.
     private val types = mutableMapOf<String, KClass<*>>(
         "coverStage" to Boolean::class, "bigCoverCanvas" to Boolean::class, "staticAutoScroll" to Boolean::class,
-    )
+    ).apply { putAll(RendererStyleMigration.oldKeys) }
+
+    // Before the settings below read their values.
+    init { migrateStored(prefs) }
 
     /** The type each setting is stored as, by key, so a restore can turn away the wrong one. */
     val storedTypes: Map<String, KClass<*>> get() = types
@@ -50,9 +53,8 @@ class AppSettings(private val prefs: SharedPreferences) {
     var romanizationHighlight by enum("romanizationHighlight", com.tx24.spicyplayer.lyrics.spicy.RomanizationHighlight.Sweep)
     var animatedUnderRows by boolean("animatedUnderRows", false)
 
-    var lyricsStyle by enum("lyricsStyle", LyricsStyle.Spicy)
-    var simpleLyricsMode by boolean("simpleLyricsMode", false)
-    var refreshedSimpleLyrics by boolean("refreshedSimpleLyrics", false)
+    var rendererStyle by enum(RendererStyleMigration.KEY, RendererStyle.Spring)
+    /** Shown as "Fade Away Previous Lines"; the key keeps its old name. */
     var minimalLyricsMode by boolean("minimalLyricsMode", false)
     var originalWordMotion by boolean("originalWordMotion", false)
     /**
@@ -334,6 +336,21 @@ class AppSettings(private val prefs: SharedPreferences) {
     companion object {
         /** Sung words grow and lift this much more than the desktop amount, which reads better on a phone. */
         const val WORD_MOTION_BOOST = 1.25f
+
+        /** Carries settings saved under older names over to the current ones, in place. */
+        fun migrateStored(prefs: SharedPreferences) {
+            val edit = RendererStyleMigration.migrate(prefs.all)
+            if (edit.isEmpty) return
+            prefs.edit().apply {
+                edit.remove.forEach(::remove)
+                edit.set.forEach { (key, value) ->
+                    when (value) {
+                        is Boolean -> putBoolean(key, value)
+                        else -> putString(key, value.toString())
+                    }
+                }
+            }.commit()
+        }
     }
 }
 
@@ -417,12 +434,6 @@ enum class AmbientDelay(val label: String, val millis: Long) {
 enum class PanelSide { Left, Right }
 
 enum class ReleaseYearPosition(val label: String) { Off("Off"), Left("Left"), Right("Right") }
-
-/** How the lyrics look and move: Spicy Lyrics' own, or like Apple Music's. */
-enum class LyricsStyle(val label: String) {
-    Spicy("Spicy Lyrics"),
-    AppleMusic("Apple Music"),
-}
 
 /** Lyric text sizes to pick from in one step, against the default, which follows the screen width. */
 enum class LyricsSize(val percent: Int, val label: String) {
