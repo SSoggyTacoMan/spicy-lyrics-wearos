@@ -69,7 +69,8 @@ import com.tx24.spicyplayer.network.data.spotify.AudioAnalysis
 import com.tx24.spicyplayer.network.data.spotify.LocalTrackMetadata
 import com.tx24.spicyplayer.network.data.spotify.SharedSpotify
 import com.tx24.spicyplayer.network.data.spotify.SpotifyTrackCandidate
-import com.tx24.spicyplayer.lyrics.spicy.canvas.kawarp.BackgroundSpeed
+import com.tx24.spicyplayer.lyrics.spicy.canvas.kawarp.MotionSource
+import com.tx24.spicyplayer.lyrics.spicy.canvas.kawarp.TrackMotion
 import com.tx24.spicyplayer.ui.nowplaying.SessionCustomAction
 import com.tx24.spicyplayer.ui.nowplaying.TrackDirection
 import com.tx24.spicyplayer.ui.settings.CustomSourceForm
@@ -2169,14 +2170,18 @@ class ExternalPlaybackViewModel(application: Application) : AndroidViewModel(app
     /** The player's own position at [elapsedRealtimeMs], with no delay taken off. */
     fun playerPositionAt(elapsedRealtimeMs: Long): Long = clock.positionAt(elapsedRealtimeMs)
 
-    /**
-     * How fast the background should move right now by the song's beats and loudness, or null when
-     * there is no analysis for it (the background then keeps its normal speed).
-     */
-    fun backgroundSpeed(): Float? {
-        val analysis = audioAnalysis ?: return null
-        return BackgroundSpeed.at(currentPositionMs() / 1000f, analysis)
-    }
+    private var motionTrack: Pair<AudioAnalysis, TrackMotion>? = null
+
+    /** What the moving background reads each frame: the song's energy model and the playback position. */
+    val backgroundMotion = MotionSource(
+        track = {
+            val analysis = audioAnalysis
+            if (analysis == null) null
+            else motionTrack?.takeIf { it.first === analysis }?.second
+                ?: TrackMotion(analysis).also { motionTrack = analysis to it }
+        },
+        positionSeconds = { currentPositionMs() / 1000f },
+    )
 
     /** The vibrations that go with the song in [style], or null when there is no analysis for it. */
     fun musicHaptics(style: MusicHapticsStyle): List<MusicHaptic>? {
