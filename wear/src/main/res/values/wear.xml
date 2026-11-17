@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Names the watch to the phone app: it advertises spicy_lyrics_phone. -->
+    <string-array name="android_wear_capabilities">
+        <item>spicy_lyrics_watch</item>
+    </string-array>
+</resources>

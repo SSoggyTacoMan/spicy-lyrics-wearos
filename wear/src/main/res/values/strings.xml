@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Spicy Lyrics</string>
+    <string name="settings">Settings</string>
+    <string name="tile_name">Spicy Lyrics</string>
+    <string name="complication_name">Spicy Lyrics</string>
+    <string name="tile_open">Open lyrics</string>
+    <string name="tile_play">Play</string>
+    <string name="tile_pause">Pause</string>
+    <string name="complication_title">Current song</string>
+</resources>
