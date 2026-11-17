@@ -13,7 +13,7 @@ Code comments describe what the code does, not where it was ported from. Credits
 Windows / PowerShell (use `./gradlew` from Git Bash):
 
 ```
-.\gradlew.bat assembleDebug testDebugUnitTest :core:test lintDebug      # full check (from README)
+.\gradlew.bat assembleDebug testDebugUnitTest :core:test :wearproto:test :wear:assembleDebug lintDebug   # full check (from README)
 .\gradlew.bat :core:test --tests "com.tx24.spicyplayer.lyrics.spicy.parser.TtmlLyricsParserTest"
 .\gradlew.bat testDebugUnitTest --tests "*ScrollManagerTest.some test name*"
 .\gradlew.bat installDebug
@@ -62,6 +62,13 @@ The data flows through five layers. `docs/architecture.md` has the detail for ea
 3. **Source selection**: `network/data/`, covering source ranking, Spotify matching and blends.
 4. **Normalisation**: TTML, LRC or plain text become renderer `Line`/`Word` models.
 5. **Rendering**: `lyrics/spicy/canvas/`, the word-synced renderer. Backgrounds are in `kawarp/` and `ui/background/`.
+
+The watch app adds three modules: `:wearproto` (plain Kotlin: the Data Layer's wire format, the
+watch's clock and the rows it scrolls, tested with `:wearproto:test`), `:wear` (the Wear OS app)
+and `app/.../wear/` on the phone (`WearBridge` writes the song, its lyrics and the clock to the
+Data Layer; `WearCommandService` takes the watch's commands). `NowPlayingHolder` feeds it through
+`WatchFeed` whenever a lyric widget is placed or the watch app is open. `docs/wear.md` has the
+detail; the watch has a debug-only demo song (`am start -a com.tx24.spicyplayer.wear.DEMO`).
 
 The UI is split across these places:
 - `MainActivity.kt` is the lyrics screen (class `LyricsActivity`; the name `MainActivity` is the default launcher alias, so pinned icons survive the icon choice).

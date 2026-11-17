@@ -67,6 +67,21 @@ Spicy Lyrics Mobile is free and open source. If it's useful to you:
 - Star the [repository](https://github.com/spicylyrics/mobile) so other people find it
 - Report bugs and ideas, which is just as valuable
 
+## The Wear OS app
+
+The watch app shows the same word-synced lyrics on a Galaxy Watch or Pixel Watch, with the
+transport on the wrist. It isn't standalone: the phone app finds the lyrics and sends them over
+the Wear OS connection, so Spotify stays on the phone and the watch never needs a key of its own.
+
+```sh
+./gradlew :app:assembleDebug :wear:assembleDebug
+```
+
+Install both APKs (the phone's and `wear/build/outputs/apk/debug/wear-debug.apk`), grant the
+phone app notification access as usual, and open the watch app while something plays. Settings →
+Device → Watch on the phone turns the bridge off, and the watch has its own display settings
+behind the gear in the transport. [docs/wear.md](docs/wear.md) has the detail.
+
 ## Bugs, ideas and contributions
 
 [Open an issue](https://github.com/spicylyrics/mobile/issues/new/choose) or post in [#mobile-support](https://discord.com/channels/1369992682214264993/1558259688741543967) on the [Spicy Lyrics Discord](https://discord.com/invite/uqgXU5wh8j) (join first, then the channel link works). Paste your debug info (Settings → Advanced → Debug info → Copy) and describe what happened; screen recordings and song links help.
