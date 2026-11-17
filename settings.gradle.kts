@@ -14,6 +14,8 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Spicy Lyrics Mobile"
+rootProject.name = "Spicy Lyrics"
 include(":app")
 include(":core")
+include(":wearproto")
+include(":wear")
