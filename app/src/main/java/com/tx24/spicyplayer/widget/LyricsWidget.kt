@@ -56,7 +56,7 @@ class LyricsWidget : AppWidgetProvider() {
     override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, appWidgetId: Int, newOptions: Bundle) =
         NowPlayingHolder.start(context)
 
-    override fun onDisabled(context: Context) = NowPlayingHolder.stop()
+    override fun onDisabled(context: Context) = NowPlayingHolder.stopUnlessWatched()
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = when (intent.action) {

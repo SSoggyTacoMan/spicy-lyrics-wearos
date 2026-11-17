@@ -14,6 +14,8 @@ class SpicyLyricsApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashLog.install(this)
+        // The watch bridge looks for a watch of its own; nothing runs without one.
+        com.tx24.spicyplayer.wear.WearBridge.init(this)
         UpdateNotification.cancelStale(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) {

@@ -49,6 +49,9 @@ import com.tx24.spicyplayer.playback.lyricsKey
 import com.tx24.spicyplayer.playback.savedSpotifyId
 import com.tx24.spicyplayer.playback.sessionSpotifyId
 import com.tx24.spicyplayer.ui.background.CoverColors
+import com.tx24.spicyplayer.wear.WatchFeed
+import com.tx24.spicyplayer.wear.WatchTrack
+import com.tx24.spicyplayer.wear.WearBridge
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
@@ -136,6 +139,31 @@ internal object NowPlayingHolder {
     /** No lookups for songs that change with the screen off: the current one is looked up once it's on. */
     private val screenOffLookup = ScreenOffLookup()
     private var shown: WidgetLines? = null
+    /** The lyrics as the renderer got them, for the watch (the widget's [leads] are text only). */
+    private var watchLyrics: com.tx24.spicyplayer.lyrics.LyricsState? = null
+    private var watchLines: List<com.tx24.spicyplayer.lyrics.TimedLine>? = null
+    private var watchTrackKey: String? = null
+    private var watchArt: Bitmap? = null
+
+    /** What the watch asks of the holder: the transport, and its "the watch is gone" check. */
+    private val watchFeed = object : WatchFeed {
+        override fun onTrack(track: WatchTrack) = Unit
+        override fun onLyrics(
+            key: String?,
+            lyrics: com.tx24.spicyplayer.lyrics.LyricsState?,
+            lines: List<com.tx24.spicyplayer.lyrics.TimedLine>?,
+            notice: com.tx24.spicyplayer.wear.proto.WearStatus?,
+        ) = Unit
+        override fun onClock(key: String?, positionMs: Long, atPhoneMs: Long, speed: Float, playing: Boolean, canSeek: Boolean) = Unit
+        override fun onCommand(type: String, arg: Long) {
+            when (type) {
+                "playPause" -> playPause()
+                "next" -> skipNext()
+                "previous" -> skipPrevious()
+                "seek" -> seekToLyric(arg)
+            }
+        }
+    }
 
     private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { follow(it.orEmpty()) }
 
@@ -223,7 +251,7 @@ internal object NowPlayingHolder {
             show(full = true)
             return
         }
-        if (!LyricsWidget.placed(app)) return
+        if (!LyricsWidget.placed(app) && !WearBridge.wanted) return
         this.context = app
         readWants(app)
         scope = MainScope()
@@ -237,6 +265,7 @@ internal object NowPlayingHolder {
         (app as? Application)?.registerActivityLifecycleCallbacks(activityCallbacks)
         wide = LyricsWidget.screenDp(app).let { (width, height) -> width > height }
         app.registerComponentCallbacks(configCallbacks)
+        if (WearBridge.wanted) attachWatch()
         connect(app)
     }
 
@@ -256,8 +285,17 @@ internal object NowPlayingHolder {
     }
 
     /** Stops following the music: the last widget was removed. */
+    /** Called when the last widget goes or the watch closes: the other may still want the song. */
+    fun stopUnlessWatched() {
+        if (WearBridge.wanted || LyricsWidget.placed(context ?: return)) return
+        stop()
+    }
+
     fun stop() {
         val app = context ?: return
+        WearBridge.detach(watchFeed)
+        WearBridge.onRepublish = null
+        WearBridge.onReloadLyrics = null
         main.removeCallbacks(tick)
         runCatching { app.unregisterReceiver(screenReceiver) }
         (app as? Application)?.unregisterActivityLifecycleCallbacks(activityCallbacks)
@@ -296,6 +334,32 @@ internal object NowPlayingHolder {
         }
         take(lyrics)
         show()
+    }
+
+    /** The watch is open: it takes the song, the lyrics and the clock as they change. */
+    private fun attachWatch() {
+        WearBridge.attach(watchFeed)
+        WearBridge.onRepublish = { update() }
+        WearBridge.onReloadLyrics = {
+            watchLyrics = null
+            watchLines = null
+            leads = emptyList()
+            lookUpSong()
+        }
+    }
+
+    /** The watch app opened: the holder follows the player for it, if it isn't already. */
+    fun startForWatch(context: Context) {
+        val app = context.applicationContext
+        main.post {
+            if (!WearBridge.wanted) return@post
+            if (running) {
+                attachWatch()
+                update()
+            } else {
+                start(app)
+            }
+        }
     }
 
     fun playPause() {
@@ -406,7 +470,7 @@ internal object NowPlayingHolder {
         // A manual Spotify ID holds while the song's length agrees, so the length coming late can bring or drop one.
         if (durationChanged && !newSong) recheckSpotifyId(metadata)
         // With the screen off the cover waits: it's read again once the screen is on ([catchUp]).
-        val coverChanged = visibility.screenOn && refreshCover(metadata)
+        val coverChanged = (visibility.screenOn || WearBridge.watchOpen) && refreshCover(metadata)
         val wasPlaying = clock.isPlaying
         report(session, newSong)
         show(full = newSong || coverChanged || durationChanged || wasPlaying != clock.isPlaying)
@@ -452,7 +516,8 @@ internal object NowPlayingHolder {
         val request = request?.takeIf { it.title.isNotBlank() && it.artist.isNotBlank() } ?: return
         val key = songKey ?: return
         val lookup = lookup ?: return
-        if (!screenOffLookup.request(visibility.screenOn)) return
+        // The watch shows the lyrics with the phone in a pocket: its screen being off holds nothing back.
+        if (!screenOffLookup.request(visibility.screenOn || WearBridge.watchOpen)) return
         val romanize = wantsRomanization
         val manual = manualSpotifyId
         lookupJob?.cancel()
@@ -479,6 +544,8 @@ internal object NowPlayingHolder {
             is LyricsState.Ready -> {
                 lookupJob?.cancel()
                 screenOffLookup.clear()
+                watchLyrics = lyrics
+                watchLines = lyrics.lines
                 leads = WidgetLines.leads(lyrics.lines)
                 synced = lyrics.lyricsType != LyricsType.Static
                 credit = LyricsFooter(
@@ -506,6 +573,8 @@ internal object NowPlayingHolder {
         lookedUpPlain = false
         leads = emptyList()
         synced = false
+        watchLyrics = null
+        watchLines = null
         this.notice = notice
         shown = null
     }
@@ -572,6 +641,79 @@ internal object NowPlayingHolder {
         cover = thumb
     }
 
+    /** Hands the watch the song, its lyrics and where it is, if it's listening. */
+    private fun publishToWatch() {
+        val app = context ?: return
+        if (!WearBridge.wanted) return
+        val key = songKey
+        if (key != null && (key != watchTrackKey || !sameArt(art))) {
+            watchTrackKey = key
+            watchArt = art
+            val session = controller
+            val label = session?.packageName?.let { pkg ->
+                runCatching {
+                    val info = app.packageManager.getApplicationInfo(pkg, 0)
+                    app.packageManager.getApplicationLabel(info).toString()
+                }.getOrNull()
+            }.orEmpty()
+            WearBridge.onTrack(
+                WatchTrack(
+                    key = key,
+                    title = title,
+                    artist = artist,
+                    album = metadataAlbum(session),
+                    durationMs = durationMs,
+                    playerPackage = session?.packageName.orEmpty(),
+                    playerName = label.ifEmpty { session?.packageName.orEmpty() },
+                    cover = art,
+                    backdrop = backdrop ?: cover,
+                    colors = colors?.let { listOf(it.minContrast, it.highContrast, it.higherContrast) }.orEmpty(),
+                ),
+            )
+        }
+        val noticeStatus = when (notice) {
+            NO_ACCESS -> com.tx24.spicyplayer.wear.proto.WearStatus.NO_ACCESS
+            WAITING -> com.tx24.spicyplayer.wear.proto.WearStatus.WAITING
+            NO_SONG_INFO -> com.tx24.spicyplayer.wear.proto.WearStatus.NO_SONG_INFO
+            LOOKING -> com.tx24.spicyplayer.wear.proto.WearStatus.LOOKING
+            NO_LYRICS -> com.tx24.spicyplayer.wear.proto.WearStatus.NO_LYRICS
+            LOOKUP_FAILED -> com.tx24.spicyplayer.wear.proto.WearStatus.FAILED
+            else -> null
+        }
+        WearBridge.onLyrics(key, watchLyrics, if (watchLyrics != null) watchLines else null, noticeStatus)
+        val now = SystemClock.elapsedRealtime()
+        WearBridge.onClock(
+            key = key,
+            positionMs = positionMs(),
+            atPhoneMs = now,
+            speed = clock.anchor.speed,
+            playing = clock.isPlaying,
+            canSeek = controller?.playbackState?.actions?.let { it and PlaybackState.ACTION_SEEK_TO != 0L } ?: false,
+        )
+    }
+
+    private fun metadataAlbum(session: MediaController?): String =
+        session?.metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty()
+
+    private fun sameArt(next: Bitmap?): Boolean {
+        val old = watchArt
+        if (old === next) return true
+        if (old == null || next == null) return false
+        return runCatching { old.sameAs(next) }.getOrDefault(false)
+    }
+
+    /** A seek to [targetMs] of lyric time: the player's own time has the delays back on it. */
+    private fun seekToLyric(targetMs: Long) {
+        val session = controller ?: return
+        val outputDelay = outputProfiles?.let { it.delayMs(it.currentRoute()) } ?: 0
+        val songDelay = songDelays?.delayMs(request?.let { LocalLyricsStore.keyOf(it.title, it.artist) }) ?: 0
+        val playerDelay = playerDelays?.delayMs(session.packageName) ?: 0
+        val playerTarget = (targetMs + outputDelay + songDelay + playerDelay).coerceAtLeast(0L)
+        session.transportControls.seekTo(playerTarget)
+        clock.seekTo(targetMs, SystemClock.elapsedRealtime())
+        show(full = true)
+    }
+
     private fun positionMs(): Long {
         val now = SystemClock.elapsedRealtime()
         val outputDelay = outputProfiles?.let { it.delayMs(it.currentRoute()) } ?: 0
@@ -587,6 +729,13 @@ internal object NowPlayingHolder {
      */
     private fun show(full: Boolean = false) {
         main.removeCallbacks(tick)
+        WearBridge.checkOpen()
+        publishToWatch()
+        // The watch app has gone and no widget wants the song: nothing left to follow it for.
+        if (!WearBridge.wanted) {
+            val app = context
+            if (app != null && !LyricsWidget.placed(app)) main.post { if (running && !WearBridge.wanted) stop() }
+        }
         val app = context ?: return
         val sendFull = visibility.send(full) ?: return
         val position = positionMs()
