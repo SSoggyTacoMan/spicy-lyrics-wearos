@@ -24,6 +24,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.material.icons.rounded.DevicesOther
 import androidx.compose.material.icons.rounded.VerticalAlignTop
 import androidx.compose.material.icons.rounded.DragIndicator
 import androidx.compose.runtime.key
@@ -1167,6 +1168,14 @@ internal fun DeviceContent(settings: AppSettings) {
         )
     }
     SubPageCard {
+        SubPageRow(
+            SettingsPage.Watch,
+            Icons.Rounded.DevicesOther,
+            if (!com.tx24.spicyplayer.wear.WearBridge.enabled) "Off"
+            else if (com.tx24.spicyplayer.wear.WearBridge.watchOpen) "Lyrics on your wrist now"
+            else if (com.tx24.spicyplayer.wear.WearBridge.paired) "Found on your watch"
+            else "The watch app, word by word",
+        )
         val supported = PictureInPicture.supported(LocalContext.current)
         SubPageRow(
             SettingsPage.FloatingLyrics,

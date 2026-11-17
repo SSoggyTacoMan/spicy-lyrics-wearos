@@ -181,6 +181,7 @@ internal enum class SettingsPage(
     Sources("Sources"),
     Device("Device"),
     FloatingLyrics("Floating lyrics", parent = Device),
+    Watch("Watch", parent = Device),
     Advanced("Advanced"),
     /** Opened from the About card. */
     Changelog("Changelog", searchable = false),
@@ -558,6 +559,7 @@ private fun PageContent(
         SettingsPage.Sources -> SourcesContent(state, viewModel)
         SettingsPage.Device -> DeviceContent(settings)
         SettingsPage.FloatingLyrics -> FloatingLyricsContent(settings)
+        SettingsPage.Watch -> WatchContent()
         SettingsPage.Advanced -> AdvancedContent(state, viewModel, updater, settings)
         SettingsPage.Changelog -> ChangelogContent(updater)
     }
@@ -648,6 +650,7 @@ private fun PageSkeleton(page: SettingsPage) {
         SettingsPage.Sources -> SettingsSkeleton(rows = 8, cards = true)
         SettingsPage.Device -> SettingsSkeleton(rows = 9)
         SettingsPage.FloatingLyrics -> SettingsSkeleton(rows = 8)
+        SettingsPage.Watch -> SettingsSkeleton(rows = 5)
         SettingsPage.Advanced -> SettingsSkeleton(rows = 10)
         SettingsPage.Changelog -> SettingsSkeleton(rows = 6, cards = true)
     }
