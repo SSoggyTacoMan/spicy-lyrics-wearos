@@ -110,6 +110,9 @@ android {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":wearproto"))
+    // The Wear OS watch app: what's playing, its lyrics and the transport go over the Data Layer.
+    implementation("com.google.android.gms:play-services-wearable:20.0.1")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     implementation(platform("androidx.compose:compose-bom:2026.09.00"))
     implementation("androidx.activity:activity-compose:1.13.0")
