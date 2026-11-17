@@ -81,6 +81,19 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- The watch app's messages: hello, heartbeats and the transport. -->
+        <service
+            android:name="com.tx24.spicyplayer.wear.WearCommandService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/spicy/" />
+            </intent-filter>
+        </service>
+
         <service
             android:name="com.tx24.spicyplayer.playback.SessionAccessService"
             android:exported="false"
